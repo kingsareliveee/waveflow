@@ -15,17 +15,23 @@ Responsive — Flawless experience on every device
 
 Immersive — Wave visualization that moves with your music
 
-✨ Features
-🎵 Core Music Experience
-Feature	Description
-Wave Visualization Player	Real-time, animated waveform that responds to your music
-Smart Playback	Gapless playback, crossfade, and high-quality audio
-Queue Management	Drag-and-drop queue with save functionality
-Playlist Creation	Create, edit, and share playlists
-Library Management	Organize songs, artists, and albums
-Advanced Search	Instant search with filters and suggestions
-History Tracking	Recently played with timestamps
-🎨 Visual & Design
+Features
+Core Music Experience
+Wave Visualization Player — Real-time, animated waveform that responds to your music
+
+Smart Playback — Gapless playback, crossfade, and high-quality audio
+
+Queue Management — Drag-and-drop queue with save functionality
+
+Playlist Creation — Create, edit, and share playlists
+
+Library Management — Organize songs, artists, and albums
+
+Advanced Search — Instant search with filters and suggestions
+
+History Tracking — Recently played with timestamps
+
+Visual & Design
 Glassmorphism UI — Premium frosted glass effects throughout the application
 
 12+ Color Themes — From Aurora to Minimal, find your perfect vibe
@@ -38,7 +44,7 @@ Animation Control — Adjust animation intensity to your liking
 
 Font Size Options — Personalize readability for comfort
 
-🎯 Interactive Features
+Interactive Features
 3D Card Tilt — Immersive hover effects on cards
 
 Particle System — Music-reactive visual particles
@@ -51,7 +57,7 @@ Loading Skeletons — Premium shimmer effects during load
 
 Touch Gestures — Swipe, tap, and pinch support for mobile
 
-🧠 Smart Features
+Smart Features
 AI Recommendations — Personalized song suggestions based on listening history
 
 Mood Detection — Contextual playlist suggestions based on time of day
@@ -62,7 +68,7 @@ Crossfade — Smooth transitions between songs
 
 Volume Normalization — Consistent volume across different tracks
 
-🎛️ Audio Controls
+Audio Controls
 10-band Equalizer
 
 Audio Effects (Reverb, Echo, Bass Boost)
@@ -73,41 +79,53 @@ Speed Control
 
 Pitch Shift
 
-🎨 Design Philosophy
+Design Philosophy
 MUSICK is built on four core design principles:
 
-1. Glassmorphism First
+Glassmorphism First
 Every element uses frosted glass effects, creating depth and a premium feel. The UI feels lightweight, transparent, and modern.
 
-2. Depth & Layering
+Depth & Layering
 Multiple layers with subtle shadows and blur create a sense of hierarchy and immersion.
 
-3. Fluid Motion
+Fluid Motion
 All animations are smooth, natural, and purposeful — never distracting.
 
-4. Human-Centric
+Human-Centric
 The design is warm, inviting, and professional. No neon, no over-saturation — just clean, elegant aesthetics.
 
-🚀 Tech Stack
+Tech Stack
 Frontend
-Technology	Purpose
-React 18	UI framework with hooks and concurrent features
-TypeScript	Type-safe JavaScript for robust code
-Tailwind CSS	Utility-first CSS with custom glassmorphism
-Vite	Lightning-fast build tool and dev server
-Framer Motion	Smooth, declarative animations
-React Router v6	Declarative routing
-Zustand	Minimal state management
-Web Audio API	Audio processing and visualization
+React 18 — UI framework with hooks and concurrent features
+
+TypeScript — Type-safe JavaScript for robust code
+
+Tailwind CSS — Utility-first CSS with custom glassmorphism
+
+Vite — Lightning-fast build tool and dev server
+
+Framer Motion — Smooth, declarative animations
+
+React Router v6 — Declarative routing
+
+Zustand — Minimal state management
+
+Web Audio API — Audio processing and visualization
+
 Backend (Recommended)
-Technology	Purpose
-Node.js	Server runtime
-Express	Web framework
-PostgreSQL	Relational database for metadata
-Redis	Caching and session management
-AWS S3	Music file storage
-JWT	Authentication
-📦 Installation
+Node.js — Server runtime
+
+Express — Web framework
+
+PostgreSQL — Relational database for metadata
+
+Redis — Caching and session management
+
+AWS S3 — Music file storage
+
+JWT — Authentication
+
+Installation
 Prerequisites
 Node.js (v18 or higher)
 
@@ -116,101 +134,87 @@ npm or yarn
 Git
 
 Clone the Repository
-bash
 git clone https://github.com/yourusername/musick.git
 cd musick
+
 Install Dependencies
-bash
-# Install frontend dependencies
 npm install
 
-# Install backend dependencies (if using)
 cd server
 npm install
+
 Environment Setup
 Create a .env file in the root directory:
 
-env
-# Backend
 PORT=5000
 DATABASE_URL=postgresql://user:password@localhost:5432/musick
 JWT_SECRET=your_secret_key
-
-# Object Storage
 AWS_ACCESS_KEY_ID=your_access_key
 AWS_SECRET_ACCESS_KEY=your_secret_key
 AWS_S3_BUCKET=musick-music-files
 AWS_REGION=us-east-1
-
-# Frontend
 VITE_API_URL=http://localhost:5000/api
-🏃‍♂️ Running the Application
+
+Running the Application
 Development Mode
-bash
-# Start frontend (port 5173)
 npm run dev
 
-# Start backend (port 5000) - in a separate terminal
 cd server
 npm start
+
 Production Build
-bash
-# Build frontend
 npm run build
-
-# Preview production build
 npm run preview
-Docker (Optional)
-bash
-# Build and run with Docker
-docker-compose up -d
-📁 Project Structure
 
+Docker (Optional)
+docker-compose up -d
+
+Project Structure
 musick/
 ├── src/
-│   ├── components/
-│   │   ├── common/
-│   │   │   ├── GlassCard/
-│   │   │   ├── WavePlayer/
-│   │   │   ├── ThemeToggle/
-│   │   │   └── Loading/
-│   │   ├── layout/
-│   │   │   ├── Sidebar/
-│   │   │   ├── BottomNav/
-│   │   │   └── PlayerBar/
-│   │   └── pages/
-│   │       ├── Home/
-│   │       ├── Search/
-│   │       ├── Library/
-│   │       ├── SongDetail/
-│   │       └── Profile/
-│   ├── hooks/
-│   │   ├── useAuth.ts
-│   │   ├── usePlayer.ts
-│   │   └── useTheme.ts
-│   ├── store/
-│   │   ├── authStore.ts
-│   │   ├── playerStore.ts
-│   │   └── themeStore.ts
-│   ├── utils/
-│   │   ├── api.ts
-│   │   ├── helpers.ts
-│   │   └── constants.ts
-│   ├── styles/
-│   │   ├── globals.css
-│   │   └── themes.css
-│   ├── types/
-│   │   └── index.ts
-│   ├── App.tsx
-│   └── main.tsx
+│ ├── components/
+│ │ ├── common/
+│ │ │ ├── GlassCard/
+│ │ │ ├── WavePlayer/
+│ │ │ ├── ThemeToggle/
+│ │ │ └── Loading/
+│ │ ├── layout/
+│ │ │ ├── Sidebar/
+│ │ │ ├── BottomNav/
+│ │ │ └── PlayerBar/
+│ │ └── pages/
+│ │ ├── Home/
+│ │ ├── Search/
+│ │ ├── Library/
+│ │ ├── SongDetail/
+│ │ └── Profile/
+│ ├── hooks/
+│ │ ├── useAuth.ts
+│ │ ├── usePlayer.ts
+│ │ └── useTheme.ts
+│ ├── store/
+│ │ ├── authStore.ts
+│ │ ├── playerStore.ts
+│ │ └── themeStore.ts
+│ ├── utils/
+│ │ ├── api.ts
+│ │ ├── helpers.ts
+│ │ └── constants.ts
+│ ├── styles/
+│ │ ├── globals.css
+│ │ └── themes.css
+│ ├── types/
+│ │ └── index.ts
+│ ├── App.tsx
+│ └── main.tsx
 ├── public/
-│   ├── logo.svg
-│   └── logo.png
+│ ├── logo.svg
+│ └── logo.png
 ├── server/
-│   ├── controllers/
-│   ├── routes/
-│   ├── models/
-│   └── utils/
+│ ├── controllers/
+│ ├── routes/
+│ ├── models/
+│ └── utils/
 ├── .env
 ├── .gitignore
 ├── package.json
@@ -218,7 +222,8 @@ musick/
 ├── tailwind.config.js
 ├── vite.config.ts
 └── README.md
-🎯 Core Features Deep Dive
+
+Core Features Deep Dive
 Wave Visualization Player
 The heart of MUSICK. The player displays real-time audio waveforms that animate with your music. Multiple visualization styles:
 
@@ -233,19 +238,19 @@ Circular Waves — Radiating from the center
 Theme System
 MUSICK offers complete customization with 12+ premium themes:
 
-Theme	Primary	Secondary	Vibe
-Aurora	#8B5CF6	#EC4899	Magical
-Ocean	#06B6D4	#3B82F6	Calm
-Sunset	#F59E0B	#EF4444	Warm
-Forest	#10B981	#34D399	Natural
-Rose	#F472B6	#EC4899	Romantic
-Midnight	#6366F1	#8B5CF6	Deep
-Sakura	#F43F5E	#FB7185	Delicate
-Space	#818CF8	#A78BFA	Cosmic
-Gold	#FBBF24	#F59E0B	Luxury
-Emerald	#34D399	#10B981	Rich
-Lavender	#A78BFA	#C4B5FD	Calming
-Minimal	#FFFFFF	#A1A1AA	Clean
+Aurora — #8B5CF6 • #EC4899 — Magical
+Ocean — #06B6D4 • #3B82F6 — Calm
+Sunset — #F59E0B • #EF4444 — Warm
+Forest — #10B981 • #34D399 — Natural
+Rose — #F472B6 • #EC4899 — Romantic
+Midnight — #6366F1 • #8B5CF6 — Deep
+Sakura — #F43F5E • #FB7185 — Delicate
+Space — #818CF8 • #A78BFA — Cosmic
+Gold — #FBBF24 • #F59E0B — Luxury
+Emerald — #34D399 • #10B981 — Rich
+Lavender — #A78BFA • #C4B5FD — Calming
+Minimal — #FFFFFF • #A1A1AA — Clean
+
 Glassmorphism Effects
 Every UI element features:
 
@@ -259,7 +264,7 @@ Hover states with enhanced glass effect
 
 Depth layering with z-index hierarchy
 
-📱 Responsive Design
+Responsive Design
 Mobile (≤ 768px)
 Bottom navigation with icons
 
@@ -291,30 +296,28 @@ Hover effects and tooltips
 
 Keyboard shortcuts (Space, Arrow keys, Ctrl+K)
 
-⚡ Performance
-MUSICK is built for speed:
-
+Performance
 Optimization Techniques
-Code Splitting: Dynamic imports for all routes
+Code Splitting — Dynamic imports for all routes
 
-Lazy Loading: Images, components, and routes load on demand
+Lazy Loading — Images, components, and routes load on demand
 
-Preloading: Critical resources preloaded on hover
+Preloading — Critical resources preloaded on hover
 
-Service Worker: Offline support with caching
+Service Worker — Offline support with caching
 
-CDN: Optimized asset delivery
+CDN — Optimized asset delivery
 
-Bundle Size: Initial load < 200KB
+Bundle Size — Initial load < 200KB
 
 Performance Targets
-Metric	Target
-FCP (First Contentful Paint)	< 1.5s
-LCP (Largest Contentful Paint)	< 2.5s
-FID (First Input Delay)	< 100ms
-CLS (Cumulative Layout Shift)	< 0.1
-TTI (Time to Interactive)	< 3.5s
-🛠️ Contributing
+FCP (First Contentful Paint) — < 1.5s
+LCP (Largest Contentful Paint) — < 2.5s
+FID (First Input Delay) — < 100ms
+CLS (Cumulative Layout Shift) — < 0.1
+TTI (Time to Interactive) — < 3.5s
+
+Contributing
 We welcome contributions! Here's how you can help:
 
 Getting Started
@@ -342,15 +345,52 @@ Use conventional commit messages
 Feature Ideas
 Looking for inspiration? We need help with:
 
-✅ AI playlist generation
+AI playlist generation
 
-✅ Collaborative playlists
+Collaborative playlists
 
-✅ Social sharing features
+Social sharing features
 
-✅ Podcast support
+Podcast support
 
-✅ Live radio integration
+Live radio integration
 
-✅ Music discovery algorithms
+Music discovery algorithms
 
+License
+MUSICK is open-source software licensed under the MIT License.
+
+MIT License
+
+Copyright (c) 2024 MUSICK
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Acknowledgments
+Vite — For the incredible build tool
+
+React — For the amazing UI library
+
+Tailwind CSS — For the utility-first CSS framework
+
+Framer Motion — For smooth animations
+
+Lucide Icons — For beautiful, consistent icons
+
+Inter Font — For the clean, modern typography
