@@ -1,15 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { Play, Pause, Heart, MoreHorizontal, Clock, Loader2 } from "lucide-react";
+import { Play, Pause, Heart, Clock, Loader2 } from "lucide-react";
 import { usePlayerStore, type Song } from "../store/usePlayerStore";
+import { SyncedLyrics } from "../components/SyncedLyrics";
+import { useLikedSongs } from "../hooks/useLikedSongs";
+import { SongContextMenu } from "../components/SongContextMenu";
+import { cn } from "../utils/cn";
 
 export const SongDetail: React.FC = () => {
+// ... existing code ...
+
   const { videoId } = useParams<{ videoId: string }>();
   const [song, setSong] = useState<Song | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const { currentSong, isPlaying, setCurrentSong, togglePlay } = usePlayerStore();
+  const { isLiked, toggleLike } = useLikedSongs();
+
+  useEffect(() => {
+    console.log("[DEBUG] SongDetail mounted");
+    return () => console.log("[DEBUG] SongDetail unmounted");
+  }, []);
 
   useEffect(() => {
     if (!videoId) return;
@@ -97,12 +109,13 @@ export const SongDetail: React.FC = () => {
             <Play className="w-6 h-6 fill-current ml-1" />
           )}
         </button>
-        <button className="text-text-secondary hover:text-white transition-colors cursor-pointer">
-          <Heart className="w-8 h-8" />
+        <button 
+          onClick={() => song && toggleLike(song)}
+          className="text-text-secondary hover:text-white transition-colors cursor-pointer"
+        >
+          <Heart className={cn("w-8 h-8", song && isLiked(song.videoId) && "fill-primary text-primary")} />
         </button>
-        <button className="text-text-secondary hover:text-white transition-colors cursor-pointer">
-          <MoreHorizontal className="w-8 h-8" />
-        </button>
+        {song && <SongContextMenu song={song} className="[&>button]:w-10 [&>button]:h-10 [&>button>svg]:w-8 [&>button>svg]:h-8" />}
       </div>
 
       {/* Songs Table */}
@@ -135,6 +148,8 @@ export const SongDetail: React.FC = () => {
           <span className="text-right text-text-secondary text-sm pr-8">{song.duration}</span>
         </div>
       </div>
+
+      <SyncedLyrics song={song} isCurrentSong={isCurrentSong} />
     </div>
   );
 };

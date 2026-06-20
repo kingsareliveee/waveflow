@@ -47,10 +47,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   setCurrentSong: (song) => {
     const { currentSong, history } = get();
+    console.log("[DEBUG] playSong called", song?.videoId ?? "null");
     if (song === null) {
       set({ currentSong: null, isPlaying: false, currentTime: 0, duration: 0 });
       return;
     }
+    // Guard: if the same song is already loaded, skip entirely.
+    // This prevents duplicate stream requests when navigating to SongDetail
+    // or when components re-pass the same song object.
+    if (currentSong && currentSong.videoId === song.videoId) {
+      console.log("[DEBUG] playSong SKIPPED — same song already playing:", song.videoId);
+      return;
+    }
+    console.log("[DEBUG] playSong LOADING new song:", song.videoId, song.title);
     // Only push to history if a different song is playing
     const updatedHistory = currentSong && currentSong.videoId !== song.videoId 
       ? [...history, currentSong]
