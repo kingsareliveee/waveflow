@@ -1,39 +1,66 @@
 import React from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, Compass, Library } from "lucide-react";
+import { Home, Search, Library } from "lucide-react";
+import { motion } from "framer-motion";
 import { cn } from "../utils/cn";
+
+const NAV_ITEMS = [
+  { icon: Home, label: "Home", path: "/" },
+  { icon: Search, label: "Search", path: "/search" },
+  { icon: Library, label: "Library", path: "/library" },
+];
 
 export const BottomNavBar: React.FC = () => {
   const location = useLocation();
 
-  const navItems = [
-    { icon: Home, label: "Home", path: "/" },
-    { icon: Compass, label: "Explore", path: "/search" },
-    { icon: Library, label: "Library", path: "/library" },
-  ];
-
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#0a0a0c]/90 backdrop-blur-xl border-t border-white/5 z-50 flex items-center justify-around px-2 pb-safe">
-      {navItems.map((item) => {
-        const isActive = location.pathname === item.path || (item.path === '/search' && location.pathname.startsWith('/search'));
+    <div
+      className="md:hidden fixed bottom-0 left-0 right-0 h-[68px] z-50 flex items-center justify-around px-2"
+      style={{
+        background: "rgba(5,5,5,0.94)",
+        backdropFilter: "blur(32px)",
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+      }}
+    >
+      {NAV_ITEMS.map((item) => {
+        const isActive =
+          item.path === "/"
+            ? location.pathname === "/"
+            : location.pathname.startsWith(item.path);
+
         return (
           <NavLink
             key={item.path}
             to={item.path}
-            className="flex flex-col items-center justify-center w-full h-full gap-1"
+            className="flex flex-col items-center justify-center w-full h-full gap-1 relative"
           >
-            <div className={cn(
-              "p-1 rounded-full transition-all duration-300",
-              isActive ? "text-primary" : "text-text-secondary"
-            )}>
-              <item.icon className={cn("w-6 h-6", isActive && "fill-primary/20")} strokeWidth={isActive ? 2.5 : 2} />
+            <div className="relative flex flex-col items-center gap-1">
+              {isActive && (
+                <motion.div
+                  layoutId="bottom-nav-indicator"
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-[2px] rounded-full"
+                  style={{ background: "var(--accent)" }}
+                  transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                />
+              )}
+
+              <item.icon
+                className={cn(
+                  "w-[22px] h-[22px] transition-all duration-200",
+                  isActive ? "text-white" : "text-white/35"
+                )}
+                strokeWidth={isActive ? 2.5 : 1.8}
+              />
+              <span
+                className={cn(
+                  "text-[10px] font-medium transition-all duration-200",
+                  isActive ? "text-white" : "text-white/35"
+                )}
+              >
+                {item.label}
+              </span>
             </div>
-            <span className={cn(
-              "text-[10px] font-medium transition-colors",
-              isActive ? "text-white" : "text-text-secondary"
-            )}>
-              {item.label}
-            </span>
           </NavLink>
         );
       })}

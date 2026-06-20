@@ -14,41 +14,87 @@ interface GlassCardProps {
   song?: Song;
 }
 
-export const GlassCard: React.FC<GlassCardProps> = ({ title, subtitle, imageUrl, className, onClick, song }) => {
+export const GlassCard: React.FC<GlassCardProps> = ({
+  title,
+  subtitle,
+  imageUrl,
+  className,
+  onClick,
+  song,
+}) => {
   return (
     <motion.div
-      whileHover={{ y: -4 }}
-      className={cn(
-        "group relative p-3 md:p-4 rounded-[20px] bg-[#1A1A1F] border border-white/5 cursor-pointer overflow-hidden transition-all duration-300 hover:bg-white/5",
-        className
-      )}
+      whileHover={{ y: -5, scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className={cn("group relative p-3 rounded-2xl cursor-pointer overflow-hidden", className)}
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.06)",
+        transition: "background 0.2s ease, box-shadow 0.2s ease",
+      }}
       onClick={onClick}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+        e.currentTarget.style.boxShadow = "0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
     >
-      <div className="relative aspect-square rounded-xl overflow-hidden mb-4 shadow-lg">
-        <img 
-          src={imageUrl} 
-          alt={title} 
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+      {/* Artwork */}
+      <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
+        <img
+          src={imageUrl}
+          alt={title}
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          loading="lazy"
         />
-        {/* Context Menu Overlay */}
+
+        {/* Dark overlay on hover */}
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+        {/* Context menu (top right) */}
         {song && (
           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-            <SongContextMenu song={song} className="bg-black/40 backdrop-blur-md rounded-full shadow-lg" />
+            <SongContextMenu
+              song={song}
+              className="[&>button]:bg-black/50 [&>button]:backdrop-blur-sm [&>button]:rounded-full [&>button]:shadow-lg"
+            />
           </div>
         )}
-        {/* Play Button Overlay */}
-        <div className="absolute bottom-3 right-3 w-12 h-12 bg-white rounded-full flex items-center justify-center opacity-0 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-xl">
-          <Play className="w-6 h-6 text-black fill-current ml-1" />
+
+        {/* Play button (bottom right) */}
+        <motion.div
+          className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full flex items-center justify-center text-black shadow-xl"
+          style={{ background: "var(--accent)" }}
+          initial={{ opacity: 0, y: 8, scale: 0.8 }}
+          whileHover={{ scale: 1 }}
+          animate={{ opacity: 0, y: 8, scale: 0.8 }}
+          variants={{}}
+          custom={{}}
+        >
+          <Play className="w-4 h-4 fill-current ml-0.5" />
+        </motion.div>
+
+        {/* Play button via CSS group-hover (more reliable) */}
+        <div
+          className="absolute bottom-2.5 right-2.5 w-10 h-10 rounded-full flex items-center justify-center text-black shadow-xl
+                     opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0
+                     transition-all duration-300"
+          style={{ background: "var(--accent)" }}
+        >
+          <Play className="w-4 h-4 fill-current ml-0.5" />
         </div>
       </div>
-      
-      <div className="flex flex-col">
-        <h3 className="text-base font-semibold text-white truncate tracking-tight mb-1">
+
+      {/* Text */}
+      <div className="flex flex-col px-0.5 pb-0.5">
+        <h3 className="text-sm font-semibold text-white truncate leading-tight mb-0.5">
           {title}
         </h3>
-        <p className="text-sm text-text-secondary truncate line-clamp-2 whitespace-normal">
-          {subtitle}
-        </p>
+        <p className="text-xs text-white/40 truncate">{subtitle}</p>
       </div>
     </motion.div>
   );

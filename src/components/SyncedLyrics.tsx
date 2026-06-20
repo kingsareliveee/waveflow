@@ -156,26 +156,35 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-text-secondary gap-3 bg-surface/30 rounded-3xl mt-8">
-        <Loader2 className="w-8 h-8 animate-spin" />
-        <span className="text-lg font-medium">Loading lyrics...</span>
+      <div
+        className="flex flex-col items-center justify-center p-12 gap-3 rounded-3xl mt-8"
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent)" }} />
+        <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>Loading lyrics...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-text-secondary gap-3 bg-surface/30 rounded-3xl mt-8">
-        <span className="text-lg font-medium text-text-secondary">{error}</span>
+      <div
+        className="flex flex-col items-center justify-center p-10 gap-2 rounded-3xl mt-8"
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <span className="text-sm" style={{ color: "rgba(255,255,255,0.30)" }}>{error}</span>
       </div>
     );
   }
 
   if (plainLyrics) {
     return (
-      <div className="bg-surface/30 p-8 rounded-3xl max-w-3xl mt-8">
-        <h2 className="text-2xl font-bold text-white mb-6">Lyrics</h2>
-        <div className="whitespace-pre-wrap text-text-secondary text-lg leading-loose font-medium">
+      <div
+        className="p-7 rounded-3xl max-w-3xl mt-8"
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+      >
+        <h2 className="text-xl font-bold text-white mb-5" style={{ fontFamily: "'Outfit', sans-serif" }}>Lyrics</h2>
+        <div className="whitespace-pre-wrap text-base leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
           {plainLyrics}
         </div>
       </div>
@@ -187,34 +196,40 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
   }
 
   return (
-    <div className="bg-surface/30 p-8 rounded-3xl max-w-3xl w-full mt-8">
-      <h2 className="text-2xl font-bold text-white mb-6">Lyrics</h2>
-      <div 
+    <div
+      className="p-7 rounded-3xl max-w-3xl w-full mt-8"
+      style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+    >
+      <h2 className="text-xl font-bold text-white mb-5" style={{ fontFamily: "'Outfit', sans-serif" }}>Lyrics</h2>
+      <div
         ref={containerRef}
-        className="h-[450px] overflow-y-auto space-y-6 px-4 py-8"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="h-[420px] overflow-y-auto space-y-4 px-2 py-6 hide-scrollbar"
       >
-        <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; }`}</style>
-        <div className="scrollbar-hide">
-          {lyrics.map((line, index) => {
-            const isActive = index === activeIndex;
-            const isPassed = index < activeIndex;
-            
-            return (
-              <div
-                key={index}
-                ref={isActive ? activeLineRef : null}
-                className={cn(
-                  "text-2xl md:text-3xl font-bold transition-all duration-300 py-1",
-                  isActive ? "text-white scale-105 origin-left" : 
-                  isPassed ? "text-text-secondary/60" : "text-text-secondary"
-                )}
-              >
-                {line.text || " "} {/* Render space for instrumental breaks */}
-              </div>
-            );
-          })}
-        </div>
+        {lyrics.map((line, index) => {
+          const isActive = index === activeIndex;
+          const isPassed = index < activeIndex;
+
+          return (
+            <div
+              key={index}
+              ref={isActive ? activeLineRef : null}
+              className={cn(
+                "text-xl md:text-2xl font-bold transition-all duration-300 py-0.5 leading-snug",
+                isActive ? "scale-105 origin-left" : ""
+              )}
+              style={{
+                color: isActive
+                  ? "white"
+                  : isPassed
+                  ? "rgba(255,255,255,0.22)"
+                  : "rgba(255,255,255,0.40)",
+                fontFamily: "'Outfit', sans-serif",
+              }}
+            >
+              {line.text || " "}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

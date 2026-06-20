@@ -1,30 +1,33 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Pause, SkipBack, SkipForward, Loader2, Heart } from "lucide-react";
+import {
+  Play, Pause, SkipBack, SkipForward, Heart,
+  Shuffle, Repeat, Repeat1, Volume2, VolumeX,
+  ChevronUp,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useLikedSongs } from "../hooks/useLikedSongs";
 import { audioEngine } from "../lib/audioEngine";
 import { cn } from "../utils/cn";
+import { extractDominantColor, applyAmbientColor } from "../utils/colorExtractor";
+import { NowPlayingPanel } from "./NowPlayingPanel";
+
+/** Format seconds → m:ss */
+function fmt(s: number) {
+  if (!isFinite(s) || s < 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, "0")}`;
+}
 
 /**
- * BottomPlayer — UI-only playback controls.
- *
- * This component contains NO <audio> element and NO playback logic.
- * All audio state (currentTime, duration, isPlaying) comes from the
- * Zustand store, which is kept in sync by AudioProvider + AudioEngine.
- *
- * Navigation uses React Router's useNavigate() instead of window.location.href
- * to prevent full page reloads that would destroy the React tree.
+ * BottomPlayer — visual-only playback controls.
+ * All audio logic lives in AudioProvider + AudioEngine + usePlayerStore.
  */
 export const BottomPlayer: React.FC = () => {
   const navigate = useNavigate();
-  const [isLoading] = useState(false);
-
-  // Debug: track mount/unmount lifecycle
-  useEffect(() => {
-    console.log("[DEBUG] BottomPlayer mounted");
-    return () => console.log("[DEBUG] BottomPlayer unmounted");
-  }, []);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
 
   const { isLiked, toggleLike } = useLikedSongs();
 
@@ -33,109 +36,318 @@ export const BottomPlayer: React.FC = () => {
     isPlaying,
     currentTime,
     duration,
+    volume,
+    isShuffle,
+    repeatMode,
     togglePlay,
     playNext,
     playPrevious,
+    setVolume,
+    toggleShuffle,
+    toggleRepeat,
   } = usePlayerStore();
 
+  // ── Ambient color extraction ──
+  useEffect(() => {
+    if (!currentSong?.thumbnail) return;
+    extractDominantColor(currentSong.thumbnail).then(applyAmbientColor);
+  }, [currentSong?.thumbnail]);
+
+  // ── Seek handler ──
+  const seekBarRef = useRef<HTMLDivElement>(null);
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
     if (duration === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const width = rect.width;
-    const newTime = (clickX / width) * duration;
-    audioEngine.seek(newTime);
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    audioEngine.seek(pct * duration);
   };
+
+  // ── Volume ──
+  const [isMuted, setIsMuted] = useState(false);
+  const prevVolume = useRef(volume);
+  const handleMuteToggle = () => {
+    if (isMuted) {
+      setVolume(prevVolume.current);
+      setIsMuted(false);
+    } else {
+      prevVolume.current = volume;
+      setVolume(0);
+      setIsMuted(true);
+    }
+  };
+
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (!currentSong) return null;
 
   return (
-    <div className="h-[60px] md:h-[72px] bg-[#1A1A1F]/95 backdrop-blur-xl rounded-xl md:rounded-2xl border border-white/5 flex items-center justify-between px-3 md:px-4 relative overflow-hidden shadow-2xl transition-all hover:bg-[#1A1A1F]">
-      {/* Thin Progress Bar at Bottom */}
-      <div 
-        className="absolute bottom-0 left-0 right-0 h-1 bg-white/5 cursor-pointer group"
-        onClick={handleSeek}
+    <>
+      <NowPlayingPanel
+        isOpen={showNowPlaying}
+        onClose={() => setShowNowPlaying(false)}
+      />
+
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="relative overflow-hidden rounded-2xl glass-player"
+        style={{
+          boxShadow:
+            "0 -4px 40px rgba(0,0,0,0.6), 0 8px 32px rgba(0,0,0,0.5), 0 0 80px rgba(var(--ambient-r),var(--ambient-g),var(--ambient-b),0.08)",
+        }}
       >
+        {/* Ambient glow under player */}
         <div
-          className="h-full bg-primary relative group-hover:bg-primary/80 transition-colors"
-          style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 80% at 50% 130%, rgba(var(--ambient-r),var(--ambient-g),var(--ambient-b),0.06) 0%, transparent 70%)",
+          }}
         />
-      </div>
 
-      {/* Left: Thumbnail & Info */}
-      <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0 pr-4">
-        <div className="w-10 h-10 md:w-12 md:h-12 rounded-md md:rounded-lg overflow-hidden bg-surface flex-shrink-0 relative group">
-          <img
-            src={currentSong.thumbnail}
-            alt={currentSong.title}
-            className="w-full h-full object-cover"
-          />
-          {isLoading && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <Loader2 className="w-4 h-4 md:w-5 md:h-5 text-white animate-spin" />
+        {/* ── Seekbar ── */}
+        <div
+          ref={seekBarRef}
+          className="absolute top-0 left-0 right-0 h-[3px] cursor-pointer group z-10"
+          style={{ background: "rgba(255,255,255,0.06)" }}
+          onClick={handleSeek}
+        >
+          <motion.div
+            className="h-full relative"
+            style={{
+              width: `${progress}%`,
+              background: "var(--accent)",
+              transition: "width 0.25s linear",
+            }}
+          >
+            {/* Seek thumb */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{
+                background: "var(--accent)",
+                boxShadow: "0 0 8px var(--accent-glow)",
+                transform: "translateY(-50%) translateX(50%)",
+              }}
+            />
+          </motion.div>
+        </div>
+
+        {/* ── Player body ── */}
+        <div className="relative z-[1] px-4 py-3 md:px-5 md:py-3.5">
+          {/* Three-column layout */}
+          <div className="flex items-center gap-3 md:gap-4">
+
+            {/* ── LEFT: Song info ── */}
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {/* Thumbnail (click to open Now Playing) */}
+              <motion.div
+                className="relative w-11 h-11 md:w-13 md:h-13 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer"
+                whileHover={{ scale: 1.05 }}
+                onClick={() => setShowNowPlaying(true)}
+                style={{
+                  boxShadow: "0 4px 16px rgba(var(--ambient-r),var(--ambient-g),var(--ambient-b),0.30)",
+                }}
+              >
+                <AnimatePresence mode="crossfade">
+                  <motion.img
+                    key={currentSong.videoId}
+                    src={currentSong.thumbnail}
+                    alt={currentSong.title}
+                    className="w-full h-full object-cover"
+                    initial={{ opacity: 0, scale: 1.1 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </AnimatePresence>
+                {/* Expand icon overlay */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ChevronUp className="w-4 h-4 text-white" />
+                </div>
+              </motion.div>
+
+              {/* Title + Artist */}
+              <div className="flex flex-col min-w-0">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={currentSong.videoId + "-title"}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm font-semibold text-white truncate cursor-pointer hover:underline"
+                    onClick={() => navigate(`/song/${currentSong.videoId}`)}
+                  >
+                    {currentSong.title}
+                  </motion.span>
+                </AnimatePresence>
+                <span
+                  className="text-xs truncate cursor-pointer hover:text-white transition-colors"
+                  style={{ color: "rgba(255,255,255,0.45)" }}
+                  onClick={() => navigate(`/song/${currentSong.videoId}`)}
+                >
+                  {currentSong.artist}
+                </span>
+              </div>
+
+              {/* Like — mobile visible */}
+              <motion.button
+                whileHover={{ scale: 1.15 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => toggleLike(currentSong)}
+                className="flex-shrink-0 p-1.5 ml-1"
+                style={{ color: isLiked(currentSong.videoId) ? "var(--accent)" : "rgba(255,255,255,0.30)" }}
+              >
+                <Heart
+                  className="w-4 h-4"
+                  fill={isLiked(currentSong.videoId) ? "currentColor" : "none"}
+                />
+              </motion.button>
             </div>
-          )}
-        </div>
-        
-        <div className="flex flex-col min-w-0">
-          <span 
-            className="text-sm md:text-base font-semibold text-white truncate cursor-pointer hover:underline"
-            onClick={() => navigate(`/song/${currentSong.videoId}`)}
-          >
-            {currentSong.title}
-          </span>
-          <span 
-            className="text-xs text-text-secondary truncate cursor-pointer hover:underline hover:text-white transition-colors"
-            onClick={() => navigate(`/song/${currentSong.videoId}`)}
-          >
-            {currentSong.artist}
-          </span>
-        </div>
-      </div>
 
-      {/* Right: Controls */}
-      <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-        <button
-          onClick={() => toggleLike(currentSong)}
-          className="p-2 text-text-secondary hover:text-white hover:scale-110 transition-all"
-        >
-          <Heart 
-            className={cn("w-5 h-5 md:w-6 md:h-6", isLiked(currentSong.videoId) && "fill-primary text-primary")} 
-          />
-        </button>
+            {/* ── CENTER: Controls (desktop) / Play only (mobile) ── */}
+            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+              {/* Top row: shuffle + skip + play + skip + repeat */}
+              <div className="flex items-center gap-2 md:gap-4">
+                {/* Shuffle (desktop only) */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={toggleShuffle}
+                  className="hidden md:flex p-1.5 transition-colors"
+                  style={{ color: isShuffle ? "var(--accent)" : "rgba(255,255,255,0.35)" }}
+                >
+                  <Shuffle className="w-4 h-4" />
+                </motion.button>
 
-        {/* Desktop only controls */}
-        <div className="hidden md:flex items-center gap-4 mr-2">
-          <button
-            className="text-text-secondary hover:text-white transition-colors"
-            onClick={playPrevious}
-          >
-            <SkipBack className="w-5 h-5 fill-current" />
-          </button>
+                {/* Previous (desktop only) */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={playPrevious}
+                  className="hidden md:flex p-1.5"
+                  style={{ color: "rgba(255,255,255,0.60)" }}
+                >
+                  <SkipBack className="w-5 h-5 fill-current" />
+                </motion.button>
+
+                {/* Play / Pause */}
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={togglePlay}
+                  className="w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center text-black font-bold transition-all"
+                  style={{
+                    background: "var(--accent)",
+                    boxShadow: isPlaying
+                      ? "0 0 20px var(--accent-glow), 0 4px 12px rgba(0,0,0,0.4)"
+                      : "0 4px 12px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {isPlaying ? (
+                    <Pause className="w-5 h-5 fill-current" />
+                  ) : (
+                    <Play className="w-5 h-5 fill-current ml-0.5" />
+                  )}
+                </motion.button>
+
+                {/* Next (desktop only) */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={playNext}
+                  className="hidden md:flex p-1.5"
+                  style={{ color: "rgba(255,255,255,0.60)" }}
+                >
+                  <SkipForward className="w-5 h-5 fill-current" />
+                </motion.button>
+
+                {/* Repeat (desktop only) */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={toggleRepeat}
+                  className="hidden md:flex p-1.5 transition-colors"
+                  style={{ color: repeatMode !== "none" ? "var(--accent)" : "rgba(255,255,255,0.35)" }}
+                >
+                  {repeatMode === "one" ? (
+                    <Repeat1 className="w-4 h-4" />
+                  ) : (
+                    <Repeat className="w-4 h-4" />
+                  )}
+                </motion.button>
+              </div>
+
+              {/* Time labels + seekbar (desktop) */}
+              <div className="hidden md:flex items-center gap-2 w-full min-w-[220px] max-w-[320px]">
+                <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  {fmt(currentTime)}
+                </span>
+                <div
+                  className="flex-1 h-1 rounded-full cursor-pointer group relative"
+                  style={{ background: "rgba(255,255,255,0.10)" }}
+                  onClick={handleSeek}
+                >
+                  <div
+                    className="h-full rounded-full relative group-hover:opacity-90 transition-opacity"
+                    style={{
+                      width: `${progress}%`,
+                      background: "var(--accent)",
+                      transition: "width 0.25s linear",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
+                  {fmt(duration)}
+                </span>
+              </div>
+            </div>
+
+            {/* ── RIGHT: Volume (desktop) ── */}
+            <div className="hidden md:flex items-center gap-2.5 flex-1 justify-end min-w-0">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleMuteToggle}
+                style={{ color: "rgba(255,255,255,0.40)" }}
+                className="hover:text-white transition-colors flex-shrink-0"
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX className="w-4 h-4" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
+                )}
+              </motion.button>
+
+              <div className="w-24 relative">
+                {/* Volume track fill */}
+                <div
+                  className="absolute top-1/2 left-0 h-[3px] rounded-full pointer-events-none"
+                  style={{
+                    width: `${(isMuted ? 0 : volume) * 100}%`,
+                    background: "var(--accent)",
+                    transform: "translateY(-50%)",
+                  }}
+                />
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={isMuted ? 0 : volume}
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    setVolume(v);
+                    if (isMuted && v > 0) setIsMuted(false);
+                  }}
+                  className="w-full relative z-10"
+                />
+              </div>
+            </div>
+          </div>
         </div>
-
-        <button
-          className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center hover:scale-105 transition-transform text-white"
-          onClick={togglePlay}
-          disabled={!currentSong}
-        >
-          {isPlaying ? (
-            <Pause className="w-6 h-6 md:w-8 md:h-8 fill-current" />
-          ) : (
-            <Play className="w-6 h-6 md:w-8 md:h-8 fill-current ml-1" />
-          )}
-        </button>
-
-        {/* Desktop only controls */}
-        <div className="hidden md:flex items-center gap-4 ml-2">
-          <button
-            className="text-text-secondary hover:text-white transition-colors"
-            onClick={playNext}
-          >
-            <SkipForward className="w-5 h-5 fill-current" />
-          </button>
-        </div>
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 };
