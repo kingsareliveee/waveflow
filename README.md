@@ -1,4 +1,4 @@
-/musick.png
+![MUSICK Logo](https://raw.githubusercontent.com/kingsareliveee/waveflow/main/musick.png)
 
 # 🎵 MUSICK
 
