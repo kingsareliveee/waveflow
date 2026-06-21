@@ -9,6 +9,7 @@
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "play-dl": "^1.9.7",
     "youtubei.js": "^17.0.1",
