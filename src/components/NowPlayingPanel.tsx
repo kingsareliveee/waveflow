@@ -133,9 +133,6 @@ export const NowPlayingPanel: React.FC<NowPlayingPanelProps> = ({ isOpen, onClos
               {/* Seekbar */}
               <InteractiveSeekBar showLabels={true} className="w-full" />
 
-              {/* Debug: log player state when NowPlayingPanel renders */}
-              {console.log(`[PLAYER] NowPlayingPanel render currentTime=${usePlayerStore.getState().currentTime} duration=${usePlayerStore.getState().duration}`)}
-
               {/* Playback controls */}
               <div className="flex items-center justify-between px-2">
                 <motion.button

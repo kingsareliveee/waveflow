@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { audioEngine } from "../lib/audioEngine";
-import { usePlayerStore } from "../store/usePlayerStore";
+import { usePlayerStore, type Song } from "../store/usePlayerStore";
 import { useRecentlyPlayed } from "../hooks/useRecentlyPlayed";
 
 /**
@@ -94,9 +94,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     console.log("[STREAM TRIGGER] AudioProvider song-subscription effect MOUNTED (selector)");
 
-    const unsub = usePlayerStore.subscribe(
-      (state) => state.currentSong,
-      (song) => {
+    let prevSong: Song | null | undefined = undefined;
+
+    const unsub = usePlayerStore.subscribe((state) => {
+      const song = state.currentSong;
+      
+      // Only process if song actually changed
+      if (song?.videoId === prevSong?.videoId) return;
+      prevSong = song;
+
         // This listener only runs when `currentSong` changes.
         if (!song) {
           if (globalLoadedVideoId !== null) {
@@ -142,24 +148,23 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     let prevIsPlaying: boolean | undefined = undefined;
 
-    const unsub = usePlayerStore.subscribe(
-      (state) => state.isPlaying,
-      (isPlaying) => {
-        // Use storeRef to check for currentSong without subscribing to whole state
-        if (!storeRef.current.currentSong) return;
-        if (isPlaying === prevIsPlaying) return;
+    const unsub = usePlayerStore.subscribe((state) => {
+      const isPlaying = state.isPlaying;
+      
+      // Use storeRef to check for currentSong without subscribing to whole state
+      if (!storeRef.current.currentSong) return;
+      if (isPlaying === prevIsPlaying) return;
 
-        prevIsPlaying = isPlaying;
+      prevIsPlaying = isPlaying;
 
-        if (isPlaying) {
-          if (audioEngine.getReadyState() >= 3) {
-            audioEngine.play();
-          }
-        } else {
-          audioEngine.pause();
+      if (isPlaying) {
+        if (audioEngine.getReadyState() >= 3) {
+          audioEngine.play();
         }
+      } else {
+        audioEngine.pause();
       }
-    );
+    });
     return unsub;
   }, []);
 
@@ -167,14 +172,13 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     let prevVolume: number | undefined = undefined;
 
-    const unsub = usePlayerStore.subscribe(
-      (state) => state.volume,
-      (volume) => {
-        if (volume === prevVolume) return;
-        prevVolume = volume;
-        audioEngine.setVolume(volume);
-      }
-    );
+    const unsub = usePlayerStore.subscribe((state) => {
+      const volume = state.volume;
+      
+      if (volume === prevVolume) return;
+      prevVolume = volume;
+      audioEngine.setVolume(volume);
+    });
     return unsub;
   }, []);
 

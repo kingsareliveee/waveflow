@@ -67,7 +67,7 @@ export const useLibraryStore = create<LibraryState>((set) => ({
     playlists: state.playlists.map(p => p.id === id ? { ...p, name: newName } : p)
   })),
 
-  setRecentlyPlayed: (recentlyPlayed) => set((state) => {
+  setRecentlyPlayed: (recentlyPlayed) => set(() => {
     const key = (s: any) => s.videoId || s.id;
     const seen = new Set<string>();
     const filtered: typeof recentlyPlayed = [];
