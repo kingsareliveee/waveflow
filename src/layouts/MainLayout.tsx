@@ -1,11 +1,14 @@
 import React, { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "../components/Sidebar";
 import { BottomPlayer } from "../components/BottomPlayer";
 import { BottomNavBar } from "../components/BottomNavBar";
 import { MobileProfile } from "../components/MobileProfile";
 
 export const MainLayout: React.FC = () => {
+  const location = useLocation();
+  const isSongDetailPage = location.pathname.startsWith("/song/");
+
   useEffect(() => {
     console.log("[DEBUG] MainLayout mounted");
     return () => console.log("[DEBUG] MainLayout unmounted");
@@ -63,11 +66,13 @@ export const MainLayout: React.FC = () => {
         </div>
 
         {/* Floating Bottom Player */}
-        <div className="fixed bottom-[72px] md:bottom-5 left-3 right-3 md:left-[296px] md:right-5 z-[60] pointer-events-none">
-          <div className="pointer-events-auto">
-            <BottomPlayer />
+        {!isSongDetailPage && (
+          <div className="fixed bottom-[72px] md:bottom-5 left-3 right-3 md:left-[296px] md:right-5 z-[60] pointer-events-none">
+            <div className="pointer-events-auto">
+              <BottomPlayer />
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       {/* Mobile Bottom Navigation */}

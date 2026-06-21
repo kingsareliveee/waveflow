@@ -15,6 +15,9 @@ import { useRecentlyPlayed } from "../hooks/useRecentlyPlayed";
  * 3. When `volume` changes → update engine volume
  * 4. Forward engine events → Zustand store (currentTime, duration, etc.)
  */
+// Module-level variable to survive React lifecycle triggers and re-mounts
+let globalLoadedVideoId: string | null = null;
+
 export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { logPlay } = useRecentlyPlayed();
 
@@ -86,31 +89,30 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   // ── React to currentSong changes ──
-  // Use a ref to track the previously loaded videoId so we only fire
-  // a new stream request when the videoId actually changes.
-  const loadedVideoIdRef = useRef<string | null>(null);
-
+  // Subscribe specifically to `currentSong` so unrelated state updates
+  // (currentTime/duration/etc.) do NOT re-run the load logic.
   useEffect(() => {
-    console.log("[STREAM TRIGGER] AudioProvider song-subscription effect MOUNTED");
+    console.log("[STREAM TRIGGER] AudioProvider song-subscription effect MOUNTED (selector)");
 
     const unsub = usePlayerStore.subscribe(
-      (state) => {
-        const song = state.currentSong;
-
+      (state) => state.currentSong,
+      (song) => {
+        // This listener only runs when `currentSong` changes.
         if (!song) {
-          if (loadedVideoIdRef.current !== null) {
+          if (globalLoadedVideoId !== null) {
+            console.log(`[STREAM TRIGGER] currentSong cleared -> unloading (prev=${globalLoadedVideoId})`);
             audioEngine.unload();
-            loadedVideoIdRef.current = null;
+            globalLoadedVideoId = null;
           }
           return;
         }
 
         // Only load if videoId actually changed
-        if (song.videoId !== loadedVideoIdRef.current) {
-          console.log(`[STREAM TRIGGER] Zustand subscription fired — new videoId: ${song.videoId}, prev: ${loadedVideoIdRef.current}`);
+        if (song.videoId !== globalLoadedVideoId) {
+          console.log(`[STREAM TRIGGER] currentSong changed — new videoId: ${song.videoId}, prev: ${globalLoadedVideoId}`);
           console.trace("[STREAM TRIGGER] call stack");
           const streamUrl = `/api/stream/${song.videoId}`;
-          loadedVideoIdRef.current = song.videoId;
+          globalLoadedVideoId = song.videoId;
           audioEngine.load(song.videoId, streamUrl);
 
           // Log recently played (use ref to avoid stale closure)
@@ -118,34 +120,38 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
     );
-    
+
     // Handle initial state (if a song is already set before this mounts)
-    const initialState = usePlayerStore.getState();
-    if (initialState.currentSong && initialState.currentSong.videoId !== loadedVideoIdRef.current) {
-      console.log(`[STREAM TRIGGER] Initial state load — videoId: ${initialState.currentSong.videoId}, prev: ${loadedVideoIdRef.current}`);
+    const initialSong = usePlayerStore.getState().currentSong;
+    if (initialSong && initialSong.videoId !== globalLoadedVideoId) {
+      console.log(`[STREAM TRIGGER] Initial state load — videoId: ${initialSong.videoId}, prev: ${globalLoadedVideoId}`);
       console.trace("[STREAM TRIGGER] initial state call stack");
-      const streamUrl = `/api/stream/${initialState.currentSong.videoId}`;
-      loadedVideoIdRef.current = initialState.currentSong.videoId;
-      audioEngine.load(initialState.currentSong.videoId, streamUrl);
-      logPlayRef.current(initialState.currentSong);
+      const streamUrl = `/api/stream/${initialSong.videoId}`;
+      globalLoadedVideoId = initialSong.videoId;
+      audioEngine.load(initialSong.videoId, streamUrl);
+      logPlayRef.current(initialSong);
     }
 
     return () => {
-      console.log("[STREAM TRIGGER] AudioProvider song-subscription effect CLEANUP — unsub + resetting loadedVideoIdRef");
+      console.log("[STREAM TRIGGER] AudioProvider song-subscription effect CLEANUP — unsub (selector)");
       unsub();
-      // NOTE: Do NOT reset loadedVideoIdRef here — that would cause
-      // the re-mounted effect to think no song is loaded and re-fire.
     };
-  }, []); // ← FIXED: no dependencies. logPlay accessed via ref.
+  }, []);
 
-  // ── React to isPlaying changes ──
+  // ── React to isPlaying changes (selector subscription) ──
   useEffect(() => {
-    const unsub = usePlayerStore.subscribe(
-      (state) => {
-        if (!state.currentSong) return;
+    let prevIsPlaying: boolean | undefined = undefined;
 
-        if (state.isPlaying) {
-          // Only call play if we have data ready, otherwise onCanPlay handles it
+    const unsub = usePlayerStore.subscribe(
+      (state) => state.isPlaying,
+      (isPlaying) => {
+        // Use storeRef to check for currentSong without subscribing to whole state
+        if (!storeRef.current.currentSong) return;
+        if (isPlaying === prevIsPlaying) return;
+
+        prevIsPlaying = isPlaying;
+
+        if (isPlaying) {
           if (audioEngine.getReadyState() >= 3) {
             audioEngine.play();
           }
@@ -157,11 +163,16 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return unsub;
   }, []);
 
-  // ── React to volume changes ──
+  // ── React to volume changes (selector subscription) ──
   useEffect(() => {
+    let prevVolume: number | undefined = undefined;
+
     const unsub = usePlayerStore.subscribe(
-      (state) => {
-        audioEngine.setVolume(state.volume);
+      (state) => state.volume,
+      (volume) => {
+        if (volume === prevVolume) return;
+        prevVolume = volume;
+        audioEngine.setVolume(volume);
       }
     );
     return unsub;

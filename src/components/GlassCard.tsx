@@ -46,10 +46,15 @@ export const GlassCard: React.FC<GlassCardProps> = ({
       {/* Artwork */}
       <div className="relative aspect-square rounded-xl overflow-hidden mb-3">
         <img
-          src={imageUrl}
+          src={imageUrl || "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=300&auto=format&fit=crop"}
           alt={title}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           loading="lazy"
+          onError={(e) => {
+            const target = e.currentTarget;
+            target.onerror = null;
+            target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(title)}&size=300&background=1a1a2e&color=fff&bold=true`;
+          }}
         />
 
         {/* Dark overlay on hover */}

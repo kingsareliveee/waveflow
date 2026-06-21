@@ -2,9 +2,11 @@ import React, { useState, useRef, useEffect } from "react";
 import { LogIn, LogOut, User as UserIcon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme, THEMES, type ThemeKey } from "../contexts/ThemeContext";
 
 export const MobileProfile: React.FC = () => {
   const { user, loginWithGoogle, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -18,24 +20,9 @@ export const MobileProfile: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (!user) {
-    return (
-      <motion.button
-        whileHover={{ scale: 1.03 }}
-        whileTap={{ scale: 0.97 }}
-        onClick={loginWithGoogle}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-black transition-all"
-        style={{ background: "var(--accent)" }}
-      >
-        <LogIn className="w-3.5 h-3.5" />
-        Sign in
-      </motion.button>
-    );
-  }
-
-  const avatarUrl = user.user_metadata?.avatar_url;
-  const fullName = user.user_metadata?.full_name || "User";
-  const email = user.email;
+  const avatarUrl = user?.user_metadata?.avatar_url;
+  const fullName = user?.user_metadata?.full_name || "User";
+  const email = user?.email;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -46,14 +33,23 @@ export const MobileProfile: React.FC = () => {
         className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center focus:outline-none"
         style={{ border: "2px solid var(--accent)" }}
       >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt={fullName} className="w-full h-full object-cover" />
+        {user ? (
+          avatarUrl ? (
+            <img src={avatarUrl} alt={fullName} className="w-full h-full object-cover" />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-black text-xs font-bold"
+              style={{ background: "var(--accent)" }}
+            >
+              {fullName[0].toUpperCase()}
+            </div>
+          )
         ) : (
           <div
-            className="w-full h-full flex items-center justify-center text-black text-xs font-bold"
-            style={{ background: "var(--accent)" }}
+            className="w-full h-full flex items-center justify-center text-white/50 hover:text-white"
+            style={{ background: "rgba(255,255,255,0.06)" }}
           >
-            {fullName[0].toUpperCase()}
+            <UserIcon className="w-4 h-4 text-white/60" />
           </div>
         )}
       </motion.button>
@@ -62,7 +58,7 @@ export const MobileProfile: React.FC = () => {
         {isOpen && (
           <motion.div
             key="dropdown"
-            className="absolute right-0 mt-2 w-52 rounded-xl py-2 z-50"
+            className="absolute right-0 mt-2 w-56 rounded-xl py-2 z-50 flex flex-col gap-1"
             style={{
               background: "rgba(12,12,12,0.97)",
               border: "1px solid rgba(255,255,255,0.09)",
@@ -74,24 +70,69 @@ export const MobileProfile: React.FC = () => {
             exit={{ opacity: 0, scale: 0.92, y: -8 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
           >
-            {/* User info */}
+            {/* User info / Sign in */}
+            {user ? (
+              <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                <p className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Signed in as</p>
+                <p className="text-sm font-semibold text-white truncate">{fullName}</p>
+                {email && <p className="text-xs text-white/30 truncate mt-0.5">{email}</p>}
+              </div>
+            ) : (
+              <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+                <p className="text-[10px] uppercase tracking-wider text-white/30 mb-2">Guest User</p>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => { setIsOpen(false); loginWithGoogle(); }}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold text-black transition-all"
+                  style={{ background: "var(--accent)" }}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  Sign in
+                </motion.button>
+              </div>
+            )}
+
+            {/* Theme switcher */}
             <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-              <p className="text-[10px] uppercase tracking-wider text-white/30 mb-0.5">Signed in as</p>
-              <p className="text-sm font-semibold text-white truncate">{fullName}</p>
-              {email && <p className="text-xs text-white/30 truncate mt-0.5">{email}</p>}
+              <span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-white/25 mb-3">
+                Theme
+              </span>
+              <div className="flex items-center gap-2.5">
+                {THEMES.map((t) => (
+                  <motion.button
+                    key={t.key}
+                    whileHover={{ scale: 1.2 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setTheme(t.key as ThemeKey)}
+                    title={t.label}
+                    className="relative w-5 h-5 rounded-full flex-shrink-0"
+                    style={{ background: t.color }}
+                  >
+                    {theme.key === t.key && (
+                      <motion.div
+                        layoutId="theme-ring-mobile"
+                        className="absolute inset-[-3px] rounded-full border-2 border-white/60"
+                      />
+                    )}
+                  </motion.button>
+                ))}
+              </div>
             </div>
 
             {/* Logout */}
-            <button
-              onClick={() => { setIsOpen(false); logout(); }}
-              className="w-full text-left px-4 py-3 text-sm flex items-center gap-2.5 transition-colors"
-              style={{ color: "rgba(255,80,80,0.80)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,80,80,0.06)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
+            {user && (
+              <button
+                onClick={() => { setIsOpen(false); logout(); }}
+                className="w-full text-left px-4 py-3 text-sm flex items-center gap-2.5 transition-colors rounded-b-xl"
+                style={{ color: "rgba(255,80,80,0.80)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,80,80,0.06)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

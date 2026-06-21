@@ -67,14 +67,31 @@ export const useLibraryStore = create<LibraryState>((set) => ({
     playlists: state.playlists.map(p => p.id === id ? { ...p, name: newName } : p)
   })),
 
-  setRecentlyPlayed: (recentlyPlayed) => set({ recentlyPlayed }),
+  setRecentlyPlayed: (recentlyPlayed) => set((state) => {
+    const key = (s: any) => s.videoId || s.id;
+    const seen = new Set<string>();
+    const filtered: typeof recentlyPlayed = [];
+    for (const s of recentlyPlayed) {
+      const k = key(s as any);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      filtered.push(s);
+      if (filtered.length >= 50) break;
+    }
+    return { recentlyPlayed: filtered };
+  }),
   
   addRecentlyPlayed: (song) => set((state) => {
+    // Use videoId or fallback to id as unique key
+    const key = (s: any) => s.videoId || (s as any).id;
+    const songKey = key(song);
     // Avoid immediate duplicates
-    if (state.recentlyPlayed[0]?.videoId === song.videoId) {
+    if (key(state.recentlyPlayed[0]) === songKey) {
       return state;
     }
-    return { recentlyPlayed: [song, ...state.recentlyPlayed.filter(s => s.videoId !== song.videoId)] };
+    const filtered = state.recentlyPlayed.filter(s => key(s) !== songKey);
+    const newList = [song, ...filtered].slice(0, 50); // keep max 50
+    return { recentlyPlayed: newList };
   }),
   
   clearStore: () => set({

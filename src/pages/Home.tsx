@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { GlassCard } from "../components/GlassCard";
 import { CompactTrackRow } from "../components/CompactTrackRow";
@@ -7,10 +8,20 @@ import { useLikedSongs } from "../hooks/useLikedSongs";
 import { usePlaylists } from "../hooks/usePlaylists";
 import { usePlayerStore, type Song } from "../store/usePlayerStore";
 import { useAuth } from "../hooks/useAuth";
-import { Play, Sparkles, LogIn, TrendingUp } from "lucide-react";
+import { Play, Sparkles, LogIn, TrendingUp, Loader2 } from "lucide-react";
+
+const MOOD_QUERIES: Record<string, string> = {
+  Focus: "lofi hip hop focus study",
+  Energize: "synthwave cyberpunk high energy",
+  Chill: "ambient chill background music",
+  Sleep: "soft piano sleep music",
+  Happy: "upbeat happy indie pop",
+  Workout: "gym motivation electronic dance",
+  "Late Night": "deep house vocal late night lounge",
+};
 
 /* ── Animated waveform visualizer (hero) ─────────────────── */
-const HeroWaveform: React.FC = () => (
+const HeroWaveform = React.memo(() => (
   <div className="flex items-end gap-[3px]" style={{ height: 56 }}>
     {Array.from({ length: 24 }).map((_, i) => (
       <div
@@ -20,11 +31,13 @@ const HeroWaveform: React.FC = () => (
           width: 3,
           height: `${30 + Math.abs(Math.sin(i * 0.7)) * 70}%`,
           opacity: 0.6 + Math.abs(Math.sin(i * 0.5)) * 0.4,
+          animationDelay: `${(i % 12) * 0.08}s`,
         }}
       />
     ))}
   </div>
-);
+));
+HeroWaveform.displayName = "HeroWaveform";
 
 /* ── Section heading ─────────────────────────────────────── */
 const SectionHeader: React.FC<{ icon: React.ReactNode; title: string }> = ({ icon, title }) => (
@@ -43,18 +56,88 @@ const cardVariants = {
   visible: (i: number) => ({
     opacity: 1,
     y: 0,
-    transition: { delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] },
+    transition: { delay: i * 0.06, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
   }),
 };
 
-/* ── Home page ───────────────────────────────────────────── */
 export const Home: React.FC = () => {
+  const navigate = useNavigate();
   const { user, loginWithGoogle } = useAuth();
   const { recentlyPlayed } = useRecentlyPlayed();
   const { likedSongs } = useLikedSongs();
   const { playlists } = usePlaylists();
   const { setCurrentSong, setQueue, togglePlay, currentSong } = usePlayerStore();
+  const likedList = Object.values(likedSongs);
+
   const [activeMood, setActiveMood] = useState<string | null>(null);
+  const [moodSongs, setMoodSongs] = useState<Song[]>([]);
+  const [moodLoading, setMoodLoading] = useState<boolean>(false);
+
+  // Recommendations state
+  const [recommendations, setRecommendations] = useState<{
+    songs: Song[];
+    artists: Array<{ id: string; name: string; thumbnail: string; verified: boolean }>;
+    playlists: Array<{ id: string; title: string; author: string; thumbnail: string; videoCount: string }>;
+    albums: Array<{ id: string; title: string; author: string; thumbnail: string; videoCount: string }>;
+    metadata?: { forYouArtist: string; trendingGenre: string };
+  } | null>(null);
+  const [recLoading, setRecLoading] = useState<boolean>(false);
+
+  // Fetch mood songs
+  useEffect(() => {
+    if (!activeMood) {
+      setMoodSongs([]);
+      return;
+    }
+    const fetchMoodSongs = async () => {
+      setMoodLoading(true);
+      try {
+        const query = MOOD_QUERIES[activeMood];
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          // search result might be grouped now
+          const songs = data.songs || (Array.isArray(data) ? data : []);
+          setMoodSongs(songs.slice(0, 10));
+        }
+      } catch (err) {
+        console.error("Failed to fetch mood songs:", err);
+      } finally {
+        setMoodLoading(false);
+      }
+    };
+    fetchMoodSongs();
+  }, [activeMood]);
+
+  // Fetch recommendations based on user onboarding taste picker
+  useEffect(() => {
+    if (!user) {
+      setRecommendations(null);
+      return;
+    }
+    const fetchRecommendations = async () => {
+      setRecLoading(true);
+      try {
+        const prefGenre = localStorage.getItem("musick-pref-genre") || "Bollywood";
+        const prefLang = localStorage.getItem("musick-pref-lang") || "Hindi";
+        const prefArtists = localStorage.getItem("musick-pref-artists") || "";
+        
+        const res = await fetch(
+          `/api/recommendations?artists=${encodeURIComponent(prefArtists)}&genres=${encodeURIComponent(prefGenre)}&languages=${encodeURIComponent(prefLang)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRecommendations(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch recommendations:", err);
+      } finally {
+        setRecLoading(false);
+      }
+    };
+
+    fetchRecommendations();
+  }, [user]);
 
   const handlePlaySong = (song: Song, queue?: Song[]) => {
     if (currentSong?.videoId === song.videoId) {
@@ -64,8 +147,6 @@ export const Home: React.FC = () => {
       if (queue) setQueue(queue);
     }
   };
-
-  const likedList = Object.values(likedSongs);
 
   // Time-based greeting
   const hour = new Date().getHours();
@@ -97,7 +178,7 @@ export const Home: React.FC = () => {
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
           {/* Text */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 text-left">
             <div
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide w-fit"
               style={{
@@ -137,23 +218,26 @@ export const Home: React.FC = () => {
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => {
-                const first = recentlyPlayed[0] || likedList[0];
-                if (first) handlePlaySong(first, recentlyPlayed.slice(1));
+                const first = recommendations?.songs?.[0] || recentlyPlayed[0] || likedList[0];
+                if (first) {
+                  const queueList = recommendations?.songs ? recommendations.songs.slice(1) : recentlyPlayed.slice(1);
+                  handlePlaySong(first, queueList);
+                }
               }}
-              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full text-sm font-bold text-black transition-all w-fit"
+              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-full text-sm font-bold text-black transition-all w-fit font-inter"
               style={{
                 background: "var(--accent)",
                 boxShadow: "0 0 24px var(--accent-glow)",
               }}
             >
               <Play className="w-4 h-4 fill-current" />
-              Play Trending
+              Play Recommendations
             </motion.button>
           </div>
 
           {/* Waveform visualizer */}
           <div
-            className="flex-shrink-0 p-5 rounded-2xl hidden md:flex items-center justify-center"
+            className="flex-shrink-0 p-5 rounded-2xl flex items-center justify-center"
             style={{
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.05)",
@@ -198,6 +282,44 @@ export const Home: React.FC = () => {
           })}
         </div>
       </section>
+
+      {/* ── Mood Recommendations ───────────────────────── */}
+      {activeMood && (
+        <section>
+          <SectionHeader
+            icon={<Sparkles className="w-4 h-4" />}
+            title={`${activeMood} Soundtracks`}
+          />
+          {moodLoading ? (
+            <div className="flex items-center gap-2 text-white/40 text-sm py-4">
+              <Loader2 className="w-4 h-4 animate-spin text-accent" />
+              <span>Fetching mood vibes...</span>
+            </div>
+          ) : moodSongs.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+              {moodSongs.map((song, i) => (
+                <motion.div
+                  key={song.videoId}
+                  custom={i}
+                  initial="hidden"
+                  animate="visible"
+                  variants={cardVariants}
+                >
+                  <GlassCard
+                    title={song.title}
+                    subtitle={song.artist}
+                    imageUrl={song.thumbnail}
+                    song={song}
+                    onClick={() => handlePlaySong(song, moodSongs.slice(i + 1))}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-white/30 py-4">No tracks found for this mood.</div>
+          )}
+        </section>
+      )}
 
       {/* ── Not signed in ──────────────────────────────── */}
       {!user && (
@@ -265,6 +387,133 @@ export const Home: React.FC = () => {
             </section>
           )}
 
+          {/* Personalized Recommended Songs */}
+          {recommendations?.songs && recommendations.songs.length > 0 && (
+            <section>
+              <SectionHeader
+                icon={<Sparkles className="w-4 h-4" />}
+                title={`Because You Listened To ${recommendations.metadata?.forYouArtist || "Your Favorites"}`}
+              />
+              {recLoading ? (
+                <div className="flex items-center gap-2 text-white/40 text-sm py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-accent" />
+                  <span>Curating matches...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+                  {recommendations.songs.map((song, i) => (
+                    <motion.div
+                      key={song.videoId}
+                      custom={i}
+                      initial="hidden"
+                      animate="visible"
+                      variants={cardVariants}
+                    >
+                      <GlassCard
+                        title={song.title}
+                        subtitle={song.artist}
+                        imageUrl={song.thumbnail}
+                        song={song}
+                        onClick={() => handlePlaySong(song, recommendations.songs.slice(i + 1))}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Personalized Recommended Artists */}
+          {recommendations?.artists && recommendations.artists.length > 0 && (
+            <section>
+              <SectionHeader icon={<Sparkles className="w-4 h-4" />} title="Similar Artists" />
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-6 justify-items-center">
+                {recommendations.artists.map((artist, i) => (
+                  <motion.div
+                    key={artist.id}
+                    custom={i}
+                    initial="hidden"
+                    animate="visible"
+                    variants={cardVariants}
+                    whileHover={{ scale: 1.05 }}
+                    className="flex flex-col items-center text-center cursor-pointer group gap-3"
+                    onClick={() => navigate(`/search?q=${encodeURIComponent(artist.name)}`)}
+                  >
+                    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden relative shadow-md border border-white/5">
+                      <img
+                        src={artist.thumbnail || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&size=256&background=1a1a2e&color=fff&bold=true`}
+                        alt={artist.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                        onError={(e) => {
+                          const t = e.currentTarget;
+                          t.onerror = null;
+                          t.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&size=256&background=1a1a2e&color=fff&bold=true`;
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col items-center min-w-0">
+                      <span className="text-sm font-bold text-white truncate max-w-full group-hover:text-accent transition-colors">
+                        {artist.name}
+                      </span>
+                      <span className="text-[10px] uppercase text-white/30 font-semibold tracking-wider mt-0.5">Artist</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Personalized Recommended Playlists */}
+          {recommendations?.playlists && recommendations.playlists.length > 0 && (
+            <section>
+              <SectionHeader
+                icon={<svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>}
+                title={`Trending In ${recommendations.metadata?.trendingGenre || "Your Genre"}`}
+              />
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-5">
+                {recommendations.playlists.map((playlist, i) => (
+                  <motion.div
+                    key={playlist.id}
+                    custom={i}
+                    initial="hidden"
+                    animate="visible"
+                    variants={cardVariants}
+                    whileHover={{ y: -6 }}
+                    className="rounded-[24px] p-4 cursor-pointer flex flex-col gap-3 group transition-all"
+                    style={{
+                      background: "rgba(255,255,255,0.02)",
+                      border: "1px solid rgba(255,255,255,0.05)"
+                    }}
+                    onClick={() => navigate(`/playlist/${playlist.id}`)}
+                  >
+                    <div className="aspect-square rounded-2xl overflow-hidden relative shadow-lg">
+                      <img
+                        src={playlist.thumbnail}
+                        alt={playlist.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-black shadow-lg">
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col min-w-0 text-left">
+                      <h4 className="text-sm font-bold text-white truncate leading-tight group-hover:text-accent transition-colors">
+                        {playlist.title}
+                      </h4>
+                      <p className="text-xs text-white/40 truncate mt-1">
+                        By {playlist.author} • {playlist.videoCount}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* Liked Songs */}
           {likedList.length > 0 && (
             <section>
@@ -317,6 +566,7 @@ export const Home: React.FC = () => {
                     <GlassCard
                       title={playlist.name}
                       subtitle={`${playlist.songs?.length || 0} songs`}
+                      onClick={() => navigate(`/playlist/${playlist.id}`)}
                       imageUrl={
                         playlist.songs && playlist.songs.length > 0
                           ? playlist.songs[0].thumbnail

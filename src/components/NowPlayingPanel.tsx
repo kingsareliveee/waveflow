@@ -8,14 +8,7 @@ import {
 } from "lucide-react";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useLikedSongs } from "../hooks/useLikedSongs";
-import { audioEngine } from "../lib/audioEngine";
-
-function fmt(s: number) {
-  if (!isFinite(s) || s < 0) return "0:00";
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
-}
+import { InteractiveSeekBar } from "./InteractiveSeekBar";
 
 interface NowPlayingPanelProps {
   isOpen: boolean;
@@ -29,8 +22,6 @@ export const NowPlayingPanel: React.FC<NowPlayingPanelProps> = ({ isOpen, onClos
   const {
     currentSong,
     isPlaying,
-    currentTime,
-    duration,
     isShuffle,
     repeatMode,
     queue,
@@ -41,14 +32,6 @@ export const NowPlayingPanel: React.FC<NowPlayingPanelProps> = ({ isOpen, onClos
     toggleRepeat,
   } = usePlayerStore();
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioEngine.seek(pct * duration);
-  };
 
   if (!currentSong) return null;
 
@@ -148,26 +131,10 @@ export const NowPlayingPanel: React.FC<NowPlayingPanelProps> = ({ isOpen, onClos
               </div>
 
               {/* Seekbar */}
-              <div className="flex flex-col gap-1.5">
-                <div
-                  className="h-1.5 rounded-full cursor-pointer group relative"
-                  style={{ background: "rgba(255,255,255,0.10)" }}
-                  onClick={handleSeek}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${progress}%`,
-                      background: "var(--accent)",
-                      transition: "width 0.25s linear",
-                    }}
-                  />
-                </div>
-                <div className="flex justify-between text-[11px] tabular-nums" style={{ color: "rgba(255,255,255,0.30)" }}>
-                  <span>{fmt(currentTime)}</span>
-                  <span>{fmt(duration)}</span>
-                </div>
-              </div>
+              <InteractiveSeekBar showLabels={true} className="w-full" />
+
+              {/* Debug: log player state when NowPlayingPanel renders */}
+              {console.log(`[PLAYER] NowPlayingPanel render currentTime=${usePlayerStore.getState().currentTime} duration=${usePlayerStore.getState().duration}`)}
 
               {/* Playback controls */}
               <div className="flex items-center justify-between px-2">
@@ -192,7 +159,10 @@ export const NowPlayingPanel: React.FC<NowPlayingPanelProps> = ({ isOpen, onClos
                 <motion.button
                   whileHover={{ scale: 1.06 }}
                   whileTap={{ scale: 0.94 }}
-                  onClick={togglePlay}
+                  onClick={() => {
+                    console.log(`[PLAYER] play/pause clicked (isPlaying=${isPlaying})`);
+                    togglePlay();
+                  }}
                   className="w-14 h-14 rounded-full flex items-center justify-center text-black"
                   style={{
                     background: "var(--accent)",

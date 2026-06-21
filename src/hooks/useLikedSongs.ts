@@ -29,7 +29,7 @@ export const useLikedSongs = () => {
             title: row.title,
             artist: row.artist,
             thumbnail: row.thumbnail,
-            duration: row.duration,
+            duration: '', // liked_songs table has no duration column
           };
         });
         setLikedSongs(likedMap);
@@ -79,7 +79,7 @@ export const useLikedSongs = () => {
             title: song.title,
             artist: song.artist,
             thumbnail: song.thumbnail,
-            duration: song.duration,
+            // NOTE: liked_songs table has no duration column — don't include it
           });
           
         if (error) throw error;

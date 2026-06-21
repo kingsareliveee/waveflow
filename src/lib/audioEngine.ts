@@ -90,7 +90,9 @@ class AudioEngineClass {
     console.log(`[STREAM TRIGGER] audioEngine.load() — videoId=${videoId}, prev=${this.currentVideoId}`);
     console.trace("[STREAM TRIGGER] audioEngine.load call stack");
     this.currentVideoId = videoId;
+    console.log(`[PLAYER] audio.src changed`);
     this.audio.src = streamUrl;
+    console.log(`[PLAYER] audio.load called`);
     this.audio.load();
   }
 
@@ -98,6 +100,7 @@ class AudioEngineClass {
    * Start playback. Returns a promise that resolves when playback starts.
    */
   async play(): Promise<void> {
+    console.log(`[PLAYER] play() called`);
     try {
       await this.audio.play();
     } catch (err: any) {
@@ -113,6 +116,7 @@ class AudioEngineClass {
    * Pause playback.
    */
   pause() {
+    console.log(`[PLAYER] pause() called`);
     this.audio.pause();
   }
 
@@ -121,6 +125,7 @@ class AudioEngineClass {
    */
   seek(time: number) {
     if (isFinite(time) && time >= 0) {
+      console.log(`[SEEK] oldTime=${this.audio.currentTime} newTime=${time} duration=${this.audio.duration}`);
       this.audio.currentTime = time;
     }
   }
@@ -165,7 +170,9 @@ class AudioEngineClass {
    */
   unload() {
     this.audio.pause();
+    console.log(`[PLAYER] audio.unload called — removing src (was=${this.currentVideoId})`);
     this.audio.removeAttribute("src");
+    console.log(`[PLAYER] audio.load called (reset after unload)`);
     this.audio.load(); // reset the element
     this.currentVideoId = null;
   }

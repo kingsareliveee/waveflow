@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { usePlayerStore, type Song } from '../store/usePlayerStore';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../utils/cn';
@@ -27,6 +27,11 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
     let isMounted = true;
     console.log("Lyrics component mounted");
     console.log("song:", song);
+    
+    // Clear old lyrics immediately to prevent stale state
+    setLyrics([]);
+    setPlainLyrics('');
+    setError('');
     
     const cleanTitle = (title: string, artist: string) => {
       let cleaned = title
@@ -144,14 +149,24 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
     }
   }
 
-  // Auto-scroll
+  // Auto-scroll: only scroll WITHIN the lyrics container, never the page
   useEffect(() => {
-    if (activeLineRef.current && isCurrentSong) {
-      activeLineRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      });
-    }
+    if (!activeLineRef.current || !containerRef.current || !isCurrentSong) return;
+    
+    const container = containerRef.current;
+    const activeLine = activeLineRef.current;
+    
+    // Calculate offset relative to container, then center it
+    const containerHeight = container.clientHeight;
+    const lineOffsetTop = activeLine.offsetTop;
+    const lineHeight = activeLine.clientHeight;
+    
+    const targetScrollTop = lineOffsetTop - containerHeight / 2 + lineHeight / 2;
+    
+    container.scrollTo({
+      top: Math.max(0, targetScrollTop),
+      behavior: 'smooth',
+    });
   }, [activeIndex, isCurrentSong]);
 
   if (loading) {
@@ -203,7 +218,7 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
       <h2 className="text-xl font-bold text-white mb-5" style={{ fontFamily: "'Outfit', sans-serif" }}>Lyrics</h2>
       <div
         ref={containerRef}
-        className="h-[420px] overflow-y-auto space-y-4 px-2 py-6 hide-scrollbar"
+        className="relative h-[420px] overflow-y-auto space-y-4 px-2 py-6 hide-scrollbar"
       >
         {lyrics.map((line, index) => {
           const isActive = index === activeIndex;

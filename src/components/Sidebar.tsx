@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { Home, Search, Library, Heart, LogIn, LogOut, Plus, Music } from "lucide-react";
+import { NavLink, useNavigate } from "react-router-dom";
+import { Home, Search, Library, LogIn, LogOut, Plus, Music } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "../utils/cn";
 import { useAuth } from "../hooks/useAuth";
@@ -9,6 +9,7 @@ import { CreatePlaylistModal } from "./CreatePlaylistModal";
 import { useTheme, THEMES, type ThemeKey } from "../contexts/ThemeContext";
 
 export const Sidebar: React.FC = () => {
+  const navigate = useNavigate();
   const { user, loginWithGoogle, logout } = useAuth();
   const { playlists } = usePlaylists();
   const { theme, setTheme } = useTheme();
@@ -87,6 +88,7 @@ export const Sidebar: React.FC = () => {
               key={playlist.id}
               whileHover={{ x: 4 }}
               transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              onClick={() => navigate(`/playlist/${playlist.id}`)}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group"
               style={{ transition: "background 0.15s" }}
               onMouseEnter={(e) =>

@@ -34,6 +34,21 @@ interface PlayerState {
   playPrevious: () => void;
 }
 
+function parseDurationToSeconds(durationStr: string | undefined | null): number {
+  if (!durationStr) return 0;
+  if (/^\d+$/.test(durationStr)) {
+    return parseInt(durationStr, 10);
+  }
+  const parts = durationStr.split(":").map(p => parseInt(p, 10));
+  if (parts.some(isNaN)) return 0;
+  if (parts.length === 2) {
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  return 0;
+}
+
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentSong: null,
   isPlaying: false,
@@ -69,6 +84,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       currentSong: song,
       isPlaying: true,
       currentTime: 0,
+      duration: parseDurationToSeconds(song.duration),
       history: updatedHistory,
     });
   },
@@ -126,6 +142,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           queue: newQueue,
           history: [],
           currentTime: 0,
+          duration: parseDurationToSeconds(nextSong.duration),
           isPlaying: true,
         });
       } else {
@@ -154,6 +171,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       queue: newQueue,
       history: updatedHistory,
       currentTime: 0,
+      duration: parseDurationToSeconds(nextSong.duration),
       isPlaying: true,
     });
   },
@@ -171,6 +189,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       history: updatedHistory,
       queue: updatedQueue,
       currentTime: 0,
+      duration: parseDurationToSeconds(previousSong.duration),
       isPlaying: true,
     });
   },

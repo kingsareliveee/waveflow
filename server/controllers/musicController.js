@@ -40,3 +40,28 @@ export const getSongDetails = async (req, res) => {
 export const getRelatedSongs = async (req, res) => {
   res.json([]);
 };
+
+export const getPlaylistDetails = async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+    if (!playlistId) {
+      return res.status(400).json({ error: "Playlist ID is required" });
+    }
+    const playlist = await YoutubeService.getPlaylist(playlistId);
+    res.json(playlist);
+  } catch (error) {
+    console.error("Playlist details controller error:", error);
+    res.status(500).json({ error: "Failed to fetch playlist details" });
+  }
+};
+
+export const getPersonalizedRecommendations = async (req, res) => {
+  try {
+    const { artists, genres, languages } = req.query;
+    const recommendations = await YoutubeService.getRecommendations(artists, genres, languages);
+    res.json(recommendations);
+  } catch (error) {
+    console.error("Recommendations controller error:", error);
+    res.status(500).json({ error: "Failed to fetch recommendations" });
+  }
+};

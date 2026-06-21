@@ -4,6 +4,23 @@ import { useLibraryStore, type Playlist } from '../store/useLibraryStore';
 import type { Song } from '../store/usePlayerStore';
 import toast from 'react-hot-toast';
 
+/** Convert "m:ss" or "h:mm:ss" duration string to total seconds (int). */
+function durationToSeconds(dur: string): number {
+  if (!dur) return 0;
+  const parts = dur.split(':').map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return parts[0] || 0;
+}
+
+/** Convert integer seconds back to "m:ss" display string. */
+function secondsToDuration(sec: number | null | undefined): string {
+  if (!sec || sec <= 0) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export const usePlaylists = () => {
   const { user, playlists, setPlaylists, addPlaylist, removePlaylist, renamePlaylist } = useLibraryStore();
 
@@ -50,7 +67,7 @@ export const usePlaylists = () => {
               title: ps.title,
               artist: ps.artist,
               thumbnail: ps.thumbnail,
-              duration: ps.duration,
+              duration: secondsToDuration(ps.duration),
             } as Song))
         }));
         
@@ -147,7 +164,7 @@ export const usePlaylists = () => {
           title: song.title,
           artist: song.artist,
           thumbnail: song.thumbnail,
-          duration: song.duration,
+          duration: durationToSeconds(song.duration),
           position: playlists.find(p => p.id === playlistId)?.songs?.length || 0
         });
         

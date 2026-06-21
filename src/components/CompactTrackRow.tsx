@@ -58,10 +58,15 @@ export const CompactTrackRow: React.FC<CompactTrackRowProps> = ({
       {/* Thumbnail */}
       <div className="w-11 h-11 rounded-lg overflow-hidden relative flex-shrink-0">
         <img
-          src={song.thumbnail}
+          src={song.thumbnail || `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&size=128&background=1a1a2e&color=fff&bold=true`}
           alt={song.title}
           className="w-full h-full object-cover"
           loading="lazy"
+          onError={(e) => {
+            const t = e.currentTarget;
+            t.onerror = null;
+            t.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(song.title)}&size=128&background=1a1a2e&color=fff&bold=true`;
+          }}
         />
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>

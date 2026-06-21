@@ -8,18 +8,10 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlayerStore } from "../store/usePlayerStore";
 import { useLikedSongs } from "../hooks/useLikedSongs";
-import { audioEngine } from "../lib/audioEngine";
-import { cn } from "../utils/cn";
 import { extractDominantColor, applyAmbientColor } from "../utils/colorExtractor";
 import { NowPlayingPanel } from "./NowPlayingPanel";
+import { InteractiveSeekBar } from "./InteractiveSeekBar";
 
-/** Format seconds → m:ss */
-function fmt(s: number) {
-  if (!isFinite(s) || s < 0) return "0:00";
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, "0")}`;
-}
 
 /**
  * BottomPlayer — visual-only playback controls.
@@ -34,8 +26,6 @@ export const BottomPlayer: React.FC = () => {
   const {
     currentSong,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isShuffle,
     repeatMode,
@@ -53,14 +43,11 @@ export const BottomPlayer: React.FC = () => {
     extractDominantColor(currentSong.thumbnail).then(applyAmbientColor);
   }, [currentSong?.thumbnail]);
 
-  // ── Seek handler ──
-  const seekBarRef = useRef<HTMLDivElement>(null);
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (duration === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioEngine.seek(pct * duration);
-  };
+  // Debug: log audio engine events when BottomPlayer mounts
+  useEffect(() => {
+    console.log(`[PLAYER] BottomPlayer mount currentTime=${usePlayerStore.getState().currentTime} duration=${usePlayerStore.getState().duration}`);
+  }, []);
+
 
   // ── Volume ──
   const [isMuted, setIsMuted] = useState(false);
@@ -76,7 +63,7 @@ export const BottomPlayer: React.FC = () => {
     }
   };
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
 
   if (!currentSong) return null;
 
@@ -106,31 +93,9 @@ export const BottomPlayer: React.FC = () => {
           }}
         />
 
-        {/* ── Seekbar ── */}
-        <div
-          ref={seekBarRef}
-          className="absolute top-0 left-0 right-0 h-[3px] cursor-pointer group z-10"
-          style={{ background: "rgba(255,255,255,0.06)" }}
-          onClick={handleSeek}
-        >
-          <motion.div
-            className="h-full relative"
-            style={{
-              width: `${progress}%`,
-              background: "var(--accent)",
-              transition: "width 0.25s linear",
-            }}
-          >
-            {/* Seek thumb */}
-            <div
-              className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{
-                background: "var(--accent)",
-                boxShadow: "0 0 8px var(--accent-glow)",
-                transform: "translateY(-50%) translateX(50%)",
-              }}
-            />
-          </motion.div>
+        {/* ── Progress bar (top edge of player) ── */}
+        <div className="absolute top-0 left-0 right-0 h-[3px] z-10 cursor-pointer group">
+          <InteractiveSeekBar className="!block w-full [&>div]:!h-[3px] [&>div]:!rounded-none" />
         </div>
 
         {/* ── Player body ── */}
@@ -149,7 +114,7 @@ export const BottomPlayer: React.FC = () => {
                   boxShadow: "0 4px 16px rgba(var(--ambient-r),var(--ambient-g),var(--ambient-b),0.30)",
                 }}
               >
-                <AnimatePresence mode="crossfade">
+                <AnimatePresence mode="wait">
                   <motion.img
                     key={currentSong.videoId}
                     src={currentSong.thumbnail}
@@ -236,7 +201,10 @@ export const BottomPlayer: React.FC = () => {
                 <motion.button
                   whileHover={{ scale: 1.06 }}
                   whileTap={{ scale: 0.94 }}
-                  onClick={togglePlay}
+                  onClick={() => {
+                    console.log(`[PLAYER] play/pause clicked (isPlaying=${isPlaying})`);
+                    togglePlay();
+                  }}
                   className="w-10 h-10 md:w-11 md:h-11 rounded-full flex items-center justify-center text-black font-bold transition-all"
                   style={{
                     background: "var(--accent)",
@@ -280,28 +248,7 @@ export const BottomPlayer: React.FC = () => {
               </div>
 
               {/* Time labels + seekbar (desktop) */}
-              <div className="hidden md:flex items-center gap-2 w-full min-w-[220px] max-w-[320px]">
-                <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  {fmt(currentTime)}
-                </span>
-                <div
-                  className="flex-1 h-1 rounded-full cursor-pointer group relative"
-                  style={{ background: "rgba(255,255,255,0.10)" }}
-                  onClick={handleSeek}
-                >
-                  <div
-                    className="h-full rounded-full relative group-hover:opacity-90 transition-opacity"
-                    style={{
-                      width: `${progress}%`,
-                      background: "var(--accent)",
-                      transition: "width 0.25s linear",
-                    }}
-                  />
-                </div>
-                <span className="text-[10px] tabular-nums flex-shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  {fmt(duration)}
-                </span>
-              </div>
+              <InteractiveSeekBar layout="horizontal" className="hidden md:flex w-full min-w-[220px] max-w-[320px]" />
             </div>
 
             {/* ── RIGHT: Volume (desktop) ── */}
