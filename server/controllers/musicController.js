@@ -17,11 +17,11 @@ export const searchSongs = async (req, res) => {
 export const streamAudio = async (req, res) => {
   try {
     const { videoId } = req.params;
-    YoutubeService.streamAudioToResponse(videoId, req, res);
+    await YoutubeService.streamAudioToResponse(videoId, req, res);
   } catch (error) {
     console.error("Stream controller error:", error);
     if (res.headersSent) return;
-    res.status(500).json({ error: "Failed to stream audio" });
+    res.status(500).json({ error: "Failed to stream audio", trace: req.streamTrace || [] });
   }
 };
 

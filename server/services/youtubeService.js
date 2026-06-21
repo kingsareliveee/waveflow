@@ -502,7 +502,8 @@ export class YoutubeService {
         console.log(`[STREAM FALLBACK] Invidious proxy content-type: ${proxyRes.headers['content-type']}`);
 
         if (proxyRes.statusCode >= 400) {
-          throw new Error(`Invidious proxy request returned error code: ${proxyRes.statusCode}`);
+          proxyReq.destroy(new Error(`Invidious proxy request returned error code: ${proxyRes.statusCode}`));
+          return;
         }
 
         const responseHeaders = {};
@@ -743,7 +744,10 @@ export class YoutubeService {
           if (totalBytesStreamed === 0) {
             req.streamTrace.push(`[TRACE] yt-dlp piping failed: exit code ${code}, error: ${errorOutput.slice(-100)}`);
             console.log(`[STREAM] fallbackToYtDlp failed to stream any bytes. Trying play-dl/youtubei fallback...`);
-            YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
+            YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res).catch(err => {
+              console.error("[STREAM ERROR] Unhandled fallback promise rejection:", err);
+              if (!res.headersSent) res.status(500).json({ error: "Streaming backend unavailable.", trace: req.streamTrace });
+            });
           } else {
             if (res.headersSent) return;
             res.end();
@@ -758,7 +762,10 @@ export class YoutubeService {
         req.streamTrace.push(`[TRACE] yt-dlp piping failed: spawn error ${err.message}`);
         console.error(`[STREAM ERROR STACK] fallbackToYtDlp spawn error for videoId: ${videoId}:`);
         console.error(JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
+        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res).catch(fallbackErr => {
+          console.error("[STREAM ERROR] Unhandled fallback promise rejection:", fallbackErr);
+          if (!res.headersSent) res.status(500).json({ error: "Streaming backend unavailable.", trace: req.streamTrace });
+        });
       });
 
       res.on("close", () => {
@@ -881,7 +888,10 @@ export class YoutubeService {
       const errStr = typeof err === 'string' ? err : (JSON.stringify(err) || '');
       if (errMsg.includes("confirm you're not a bot") || errStr.includes("confirm you're not a bot")) {
         console.warn("[STREAM] YouTube bot check detected on direct URL extraction. Immediately switching to play-dl/youtubei fallback...");
-        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
+        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res).catch(fallbackErr => {
+          console.error("[STREAM ERROR] Unhandled fallback promise rejection:", fallbackErr);
+          if (!res.headersSent) res.status(500).json({ error: "Streaming backend unavailable.", trace: req.streamTrace });
+        });
       } else {
         fallbackToYtDlp();
       }
