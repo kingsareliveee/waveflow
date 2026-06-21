@@ -381,22 +381,36 @@ export class YoutubeService {
     // Search YouTube for "hits" or "mix" of a couple of user's selected artists
     const artistToSearch = selectedArtists[Math.floor(Math.random() * selectedArtists.length)] || "Arijit Singh";
     const songQuery = `${artistToSearch} hits songs`;
-    const searchRes = await this.search(songQuery);
-    const recommendedSongs = searchRes.songs || [];
+    let recommendedSongs = [];
+    try {
+      const searchRes = await this.search(songQuery);
+      recommendedSongs = searchRes.songs || [];
+    } catch (err) {
+      console.error("[RECOMMENDATIONS] Songs search failed:", err.message);
+    }
 
     // 3. Build Recommended Playlists / Albums
     // Search for playlist based on genre or language
     const preferredGenre = selectedGenres[0] || "Bollywood";
     const preferredLang = selectedLanguages[0] || "Hindi";
     const playlistQuery = `${preferredLang} ${preferredGenre} playlist`;
-    const playlistSearch = await this.search(playlistQuery);
-    
-    const recommendedPlaylists = playlistSearch.playlists || [];
+    let recommendedPlaylists = [];
+    try {
+      const playlistSearch = await this.search(playlistQuery);
+      recommendedPlaylists = playlistSearch.playlists || [];
+    } catch (err) {
+      console.error("[RECOMMENDATIONS] Playlists search failed:", err.message);
+    }
     
     // Recommended Albums (represented as Mixes or Albums playlists)
     const albumQuery = `${artistToSearch} full album`;
-    const albumSearch = await this.search(albumQuery);
-    const recommendedAlbums = albumSearch.playlists || [];
+    let recommendedAlbums = [];
+    try {
+      const albumSearch = await this.search(albumQuery);
+      recommendedAlbums = albumSearch.playlists || [];
+    } catch (err) {
+      console.error("[RECOMMENDATIONS] Albums search failed:", err.message);
+    }
 
     return {
       songs: recommendedSongs.slice(0, 10),
@@ -408,6 +422,140 @@ export class YoutubeService {
         trendingGenre: preferredGenre
       }
     };
+  }
+
+  static async fallbackToInvidious(videoId, req, res) {
+    console.log(`[STREAM FALLBACK] Attempting Invidious fallback for videoId: ${videoId}`);
+    
+    if (res.headersSent) {
+      console.log(`[STREAM FALLBACK] Headers already sent, aborting Invidious fallback for videoId: ${videoId}`);
+      return;
+    }
+
+    try {
+      const instancesRes = await fetch("https://api.invidious.io/instances.json?sort_by=type,health");
+      if (!instancesRes.ok) throw new Error("Failed to fetch Invidious instances list");
+      const instancesData = await instancesRes.json();
+      
+      const instances = [];
+      for (const item of instancesData) {
+        const info = item[1];
+        if (info && info.type === "https" && info.monitor && !info.monitor.down && info.uri) {
+          if (!info.uri.includes("onion") && !info.uri.includes("i2p")) {
+            instances.push(info.uri);
+          }
+        }
+      }
+
+      console.log(`[STREAM FALLBACK] Found ${instances.length} active HTTPS Invidious instances.`);
+      
+      let audioUrl = null;
+      let successfulInstance = "";
+      
+      for (const instance of instances.slice(0, 15)) {
+        console.log(`[STREAM FALLBACK] Trying Invidious instance: ${instance}`);
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          const response = await fetch(`${instance}/api/v1/videos/${videoId}`, { signal: controller.signal });
+          clearTimeout(timeout);
+          
+          if (response.ok) {
+            const videoData = await response.json();
+            if (videoData.adaptiveFormats && videoData.adaptiveFormats.length > 0) {
+              const audioFormats = videoData.adaptiveFormats.filter(f => f.type && f.type.startsWith("audio/"));
+              if (audioFormats.length > 0) {
+                const bestAudio = audioFormats[0];
+                audioUrl = bestAudio.url.startsWith("http") ? bestAudio.url : `${instance}${bestAudio.url}`;
+                successfulInstance = instance;
+                console.log(`[STREAM FALLBACK] Successfully extracted URL from Invidious (${successfulInstance})`);
+                break;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[STREAM FALLBACK] Instance ${instance} failed:`, e.message);
+        }
+      }
+
+      if (!audioUrl) {
+        throw new Error("All tested Invidious instances failed to return audio stream URL");
+      }
+
+      console.log(`[STREAM FALLBACK] Proxying Invidious stream URL: ${audioUrl.substring(0, 60)}...`);
+      const parsedUrl = new URL(audioUrl);
+      const headers = { ...req.headers };
+      delete headers.host;
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: "GET",
+        headers: headers,
+        rejectUnauthorized: false
+      };
+
+      const proxyReq = https.request(options, (proxyRes) => {
+        console.log(`[STREAM FALLBACK] Invidious proxy response status: ${proxyRes.statusCode}`);
+        console.log(`[STREAM FALLBACK] Invidious proxy content-type: ${proxyRes.headers['content-type']}`);
+
+        if (proxyRes.statusCode >= 400) {
+          throw new Error(`Invidious proxy request returned error code: ${proxyRes.statusCode}`);
+        }
+
+        const responseHeaders = {};
+        
+        let contentType = proxyRes.headers['content-type'] || '';
+        if (contentType.includes("mp4") || contentType.includes("m4a")) {
+          contentType = "audio/mp4";
+        } else {
+          contentType = "audio/webm";
+        }
+        responseHeaders['content-type'] = contentType;
+        
+        if (proxyRes.headers['content-length']) {
+          responseHeaders['content-length'] = proxyRes.headers['content-length'];
+        }
+        if (proxyRes.headers['content-range']) {
+          responseHeaders['content-range'] = proxyRes.headers['content-range'];
+        }
+        if (proxyRes.headers['accept-ranges']) {
+          responseHeaders['accept-ranges'] = proxyRes.headers['accept-ranges'];
+        } else {
+          responseHeaders['accept-ranges'] = 'bytes';
+        }
+        if (proxyRes.headers['cache-control']) {
+          responseHeaders['cache-control'] = proxyRes.headers['cache-control'];
+        } else {
+          responseHeaders['cache-control'] = 'no-store';
+        }
+        
+        responseHeaders['access-control-allow-origin'] = '*';
+        responseHeaders['access-control-allow-headers'] = 'Range, Content-Type';
+        responseHeaders['access-control-expose-headers'] = 'Content-Range, Content-Length, Accept-Ranges';
+
+        if (res.headersSent) return;
+        res.writeHead(proxyRes.statusCode, responseHeaders);
+        proxyRes.pipe(res);
+      });
+
+      proxyReq.on("error", (err) => {
+        console.error(`[STREAM FALLBACK] Invidious proxy request error:`, err.message);
+        if (res.headersSent) return;
+        res.status(500).json({ error: "Streaming backend unavailable." });
+      });
+
+      res.on("close", () => {
+        proxyReq.destroy();
+      });
+
+      proxyReq.end();
+
+    } catch (err) {
+      console.error(`[STREAM FALLBACK] Invidious fallback failed completely:`, err.message);
+      if (res.headersSent) return;
+      res.status(500).json({ error: "Streaming backend unavailable." });
+    }
   }
 
   static async fallbackToYoutubeiOrPlayDl(videoId, req, res) {
@@ -488,10 +636,9 @@ export class YoutubeService {
       console.error(`[STREAM FALLBACK] youtubei.js extraction failed:`, ytErr.message);
     }
 
-    // If everything failed:
-    console.error(`[STREAM FALLBACK] All fallback options exhausted for videoId: ${videoId}`);
-    if (res.headersSent) return;
-    res.status(500).json({ error: "Streaming backend unavailable." });
+    // If play-dl and youtubei failed:
+    console.log(`[STREAM FALLBACK] play-dl and youtubei both failed. Trying Invidious fallback...`);
+    await YoutubeService.fallbackToInvidious(videoId, req, res);
   }
 
   static async streamAudioToResponse(videoId, req, res) {
@@ -711,7 +858,15 @@ export class YoutubeService {
     } catch (err) {
       console.error(`[STREAM ERROR STACK] Failed to fetch direct stream URL for videoId: ${videoId}:`);
       console.error(err);
-      fallbackToYtDlp();
+      
+      const errMsg = err?.message || '';
+      const errStr = typeof err === 'string' ? err : (JSON.stringify(err) || '');
+      if (errMsg.includes("confirm you're not a bot") || errStr.includes("confirm you're not a bot")) {
+        console.warn("[STREAM] YouTube bot check detected on direct URL extraction. Immediately switching to play-dl/youtubei fallback...");
+        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
+      } else {
+        fallbackToYtDlp();
+      }
     }
   }
 
