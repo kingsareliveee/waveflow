@@ -5,6 +5,8 @@ import { useAuth } from "../hooks/useAuth";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 interface Artist {
   name: string;
   genre: string;
@@ -153,7 +155,7 @@ export const OnboardingTastePicker: React.FC<{ onComplete: () => void }> = ({ on
     if (val.trim().length > 2) {
       setSearching(true);
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(val)}`);
+         const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(val)}`);
         if (res.ok) {
           const data = await res.json();
           if (data.artists && data.artists.length > 0) {

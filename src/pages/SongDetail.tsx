@@ -14,6 +14,8 @@ import { InteractiveSeekBar } from "../components/InteractiveSeekBar";
 import { extractDominantColor, applyAmbientColor } from "../utils/colorExtractor";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 // Helper to generate reliable artist avatars
 const artistAvatar = (name: string, bg = "1a1a2e") =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=256&background=${bg}&color=fff&bold=true&format=svg`;
@@ -136,7 +138,7 @@ export const SongDetail: React.FC = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/song/${videoId}`);
+         const res = await fetch(`${API_URL}/api/song/${videoId}`);
         if (!res.ok) throw new Error("Failed to fetch song details");
         const data = await res.json();
         setSong(data);
@@ -165,7 +167,7 @@ export const SongDetail: React.FC = () => {
       setRelatedLoading(true);
       try {
         const cleanArtist = song.artist.replace(/\s*-Topic/gi, "").trim();
-        const res = await fetch(`/api/search?q=${encodeURIComponent(cleanArtist)}`);
+         const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(cleanArtist)}`);
         if (res.ok) {
           const data = await res.json();
           // Map backend search results (songs is an array now because of our updates!)
@@ -215,18 +217,22 @@ export const SongDetail: React.FC = () => {
       url,
     };
 
-    // Try Web Share API first (Android native share sheet, nearby share, etc.)
     if (navigator.share) {
       try {
         await navigator.share(shareData);
-        return;
       } catch (err: any) {
-        if (err.name === "AbortError") return; // user dismissed — no toast needed
+        if (err.name !== "AbortError") {
+          console.error("Share failed:", err);
+          navigator.clipboard.writeText(url).then(() => {
+            toast.success("Link copied!");
+          });
+        }
       }
+    } else {
+      navigator.clipboard.writeText(url).then(() => {
+        toast.success("Link copied!");
+      });
     }
-
-    // Fallback: show share menu
-    setShowShareMenu(true);
   };
 
   const handleCopyLink = () => {
@@ -382,10 +388,13 @@ export const SongDetail: React.FC = () => {
 
       {/* ── Spotify style Blurred Cover Backdrop ───────────────────── */}
       <div className="absolute top-0 left-0 right-0 h-[600px] overflow-hidden pointer-events-none z-0 rounded-b-[40px]">
-        <img
+         <img
           src={song.thumbnail}
           alt={song.title}
           className="w-full h-full object-cover scale-150 blur-[80px] opacity-45"
+          onError={(e) => {
+            e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+          }}
         />
         <div
           className="absolute inset-0"
@@ -447,7 +456,14 @@ export const SongDetail: React.FC = () => {
               boxShadow: `0 24px 80px rgba(var(--ambient-r),var(--ambient-g),var(--ambient-b),0.35), 0 8px 32px rgba(0,0,0,0.5)`,
             }}
           >
-            <img src={song.thumbnail} alt={song.title} className="w-full h-full object-cover select-none" />
+             <img 
+              src={song.thumbnail} 
+              alt={song.title} 
+              className="w-full h-full object-cover select-none"
+              onError={(e) => {
+                e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+              }}
+            />
           </motion.div>
         </div>
 
@@ -601,7 +617,14 @@ export const SongDetail: React.FC = () => {
             {meta.dna.map((person, index) => (
               <div key={index} className="flex items-center gap-3.5 group">
                 <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border border-white/10">
-                  <img src={person.image} alt={person.name} className="w-full h-full object-cover" />
+                   <img 
+                    src={person.image} 
+                    alt={person.name} 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name)}`;
+                    }}
+                  />
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="text-sm font-bold text-white truncate leading-tight group-hover:text-accent transition-colors">
@@ -628,11 +651,25 @@ export const SongDetail: React.FC = () => {
         >
           {/* Artist cover background */}
           <div className="h-44 md:h-52 w-full overflow-hidden relative">
-            <img src={meta.artistImage} alt={meta.artistName} className="w-full h-full object-cover blur-sm brightness-50" />
+             <img 
+              src={meta.artistImage} 
+              alt={meta.artistName} 
+              className="w-full h-full object-cover blur-sm brightness-50"
+              onError={(e) => {
+                e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+              }}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0e0e0e] to-transparent" />
             <div className="absolute bottom-4 left-6 md:left-8 flex items-center gap-4">
               <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-white/20 flex-shrink-0">
-                <img src={meta.artistImage} alt={meta.artistName} className="w-full h-full object-cover" />
+                 <img 
+                  src={meta.artistImage} 
+                  alt={meta.artistName} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(meta.artistName)}`;
+                  }}
+                />
               </div>
               <div className="flex flex-col gap-0.5">
                 <h3 className="text-xl md:text-3xl font-extrabold text-white font-outfit">{meta.artistName}</h3>
@@ -714,7 +751,14 @@ export const SongDetail: React.FC = () => {
                   onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
                 >
                   <div className="aspect-square rounded-xl overflow-hidden relative">
-                    <img src={s.thumbnail} alt={s.title} className="w-full h-full object-cover" />
+                     <img 
+                      src={s.thumbnail} 
+                      alt={s.title} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+                      }}
+                    />
                     {/* Hover play icon */}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                       <Play className="w-8 h-8 text-white fill-current" />
@@ -748,7 +792,14 @@ export const SongDetail: React.FC = () => {
               <div key={index} className="flex items-center justify-between border-b border-white/5 pb-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0">
-                    <img src={c.image} alt={c.name} className="w-full h-full object-cover" />
+                     <img 
+                      src={c.image} 
+                      alt={c.name} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}`;
+                      }}
+                    />
                   </div>
                   <span className="text-sm font-semibold text-white">{c.name}</span>
                 </div>

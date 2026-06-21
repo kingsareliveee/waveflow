@@ -12,6 +12,8 @@ import { supabase } from "../lib/supabase";
 import { useLibraryStore, type Playlist } from "../store/useLibraryStore";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 const cardVariants = {
   hidden: { opacity: 0, y: 14 },
   visible: (i: number) => ({
@@ -63,7 +65,7 @@ export const PlaylistDetail: React.FC = () => {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(`/api/playlist/${id}`);
+        const res = await fetch(`${API_URL}/api/playlist/${id}`);
         if (!res.ok) throw new Error("Failed to load YouTube playlist");
         const data = await res.json();
         setYtPlaylist(data);

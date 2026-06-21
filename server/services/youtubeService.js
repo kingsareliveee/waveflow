@@ -1,5 +1,6 @@
 import { exec, spawn } from "child_process";
 import { promisify } from "util";
+import https from "https";
 import ytSearch from "yt-search";
 import { Innertube } from "youtubei.js";
 
@@ -315,7 +316,7 @@ export class YoutubeService {
     };
   }
 
-  static streamAudioToResponse(videoId, res) {
+  static async streamAudioToResponse(videoId, req, res) {
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
       if (!res.headersSent) res.status(400).json({ error: "Invalid Video ID" });
       return;
@@ -327,115 +328,139 @@ export class YoutubeService {
       return;
     }
 
-    const requestStart = performance.now();
-    let firstByteReceivedAt = null;
-    let firstByteSentAt = null;
-    let totalBytesStreamed = 0;
-    let peakMemoryUsage = 0;
-    let headersSent = false;
-    let errorOutput = "";
+    const fallbackToYtDlp = () => {
+      const requestStart = performance.now();
+      let firstByteReceivedAt = null;
+      let firstByteSentAt = null;
+      let totalBytesStreamed = 0;
+      let peakMemoryUsage = 0;
+      let headersSent = false;
+      let errorOutput = "";
 
-    console.log(`\n--- New Stream Request ---`);
-    console.log(`[STREAM] videoId: ${videoId}`);
-    console.log(`[STREAM] request started at: ${new Date().toISOString()}`);
+      console.log(`\n--- Falling Back to yt-dlp Stream ---`);
+      console.log(`[STREAM] videoId: ${videoId}`);
 
-    const ytDlpArgs = [
-      "-f", "bestaudio[ext=webm]/bestaudio/best",
-      "-o", "-",
-      "--no-update",
-      "--no-playlist",
-      "--no-check-certificates",
-      "--no-cache-dir",
-      "--no-part",
-      `https://www.youtube.com/watch?v=${videoId}`
-    ];
-    console.log(`[STREAM] spawn: yt-dlp ${ytDlpArgs.join(" ")}`);
+      const ytDlpArgs = [
+        "-f", "bestaudio[ext=webm]/bestaudio/best",
+        "-o", "-",
+        "--no-update",
+        "--no-playlist",
+        "--no-check-certificates",
+        "--no-cache-dir",
+        "--no-part",
+        `https://www.youtube.com/watch?v=${videoId}`
+      ];
 
-    const command = spawn("yt-dlp", ytDlpArgs, {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+      const command = spawn("yt-dlp", ytDlpArgs, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      });
 
-    command.stdout.on("data", (chunk) => {
-      const currentMem = process.memoryUsage.rss();
-      if (currentMem > peakMemoryUsage) peakMemoryUsage = currentMem;
+      command.stdout.on("data", (chunk) => {
+        const currentMem = process.memoryUsage.rss();
+        if (currentMem > peakMemoryUsage) peakMemoryUsage = currentMem;
 
-      if (!headersSent) {
-        firstByteReceivedAt = performance.now();
-        res.setHeader("Content-Type", "audio/webm");
-        res.setHeader("Accept-Ranges", "none");
-        res.setHeader("Cache-Control", "no-store");
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        headersSent = true;
-        firstByteSentAt = performance.now();
-        console.log(`[STREAM] ✓ first byte received: ${(firstByteReceivedAt - requestStart).toFixed(0)}ms after request`);
-        console.log(`[STREAM] ✓ first byte sent to client: ${(firstByteSentAt - requestStart).toFixed(0)}ms after request`);
-      }
+        if (!headersSent) {
+          firstByteReceivedAt = performance.now();
+          res.setHeader("Content-Type", "audio/webm");
+          res.setHeader("Accept-Ranges", "none");
+          res.setHeader("Cache-Control", "no-store");
+          res.setHeader("X-Content-Type-Options", "nosniff");
+          headersSent = true;
+          firstByteSentAt = performance.now();
+        }
 
-      totalBytesStreamed += chunk.length;
-      const canContinue = res.write(chunk);
-      if (!canContinue) {
-        command.stdout.pause();
-        res.once("drain", () => {
-          command.stdout.resume();
-        });
-      }
-    });
+        totalBytesStreamed += chunk.length;
+        const canContinue = res.write(chunk);
+        if (!canContinue) {
+          command.stdout.pause();
+          res.once("drain", () => {
+            command.stdout.resume();
+          });
+        }
+      });
 
-    command.stderr.on("data", (data) => {
-      const msg = data.toString();
-      if (errorOutput.length < 4096) {
-        errorOutput += msg.slice(0, 4096 - errorOutput.length);
-      }
-      if (msg.trim()) console.log(`[STREAM] yt-dlp stderr: ${msg.trim()}`);
-    });
+      command.stderr.on("data", (data) => {
+        const msg = data.toString();
+        if (errorOutput.length < 4096) {
+          errorOutput += msg.slice(0, 4096 - errorOutput.length);
+        }
+      });
 
-    command.on("close", (code) => {
-      const elapsed = performance.now() - requestStart;
-      const memMB = (peakMemoryUsage / (1024 * 1024)).toFixed(1);
-
-      console.log(`[STREAM] ── Stream Complete ──`);
-      console.log(`[STREAM]   exit code:          ${code}`);
-      console.log(`[STREAM]   total bytes:         ${totalBytesStreamed.toLocaleString()}`);
-      console.log(`[STREAM]   total duration:      ${(elapsed / 1000).toFixed(2)}s`);
-      console.log(`[STREAM]   peak memory (RSS):   ${memMB} MB`);
-      if (firstByteReceivedAt) {
-        console.log(`[STREAM]   first byte latency:  ${(firstByteReceivedAt - requestStart).toFixed(0)}ms`);
-      }
-      console.log(`[STREAM] ──────────────────────\n`);
-
-      if (code !== 0 && code !== null) {
-        if (totalBytesStreamed === 0) {
-          console.error(`[STREAM] ERROR: yt-dlp failed with code ${code}, 0 bytes streamed. Blacklisting.`);
-          vevoBlacklist.add(videoId);
-
-          if (!headersSent) {
-            res.status(403).json({ error: "Protected video. Stream failed." });
+      command.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          if (totalBytesStreamed === 0) {
+            vevoBlacklist.add(videoId);
+            if (!headersSent) {
+              res.status(403).json({ error: "Protected video. Stream failed." });
+            } else {
+              res.end();
+            }
           } else {
-            res.end();
+            if (headersSent) res.end();
           }
         } else {
-          console.error(`[STREAM] WARNING: yt-dlp exited ${code} after ${totalBytesStreamed} bytes.`);
           if (headersSent) res.end();
         }
-      } else {
-        if (headersSent) res.end();
-      }
-    });
+      });
 
-    command.on("error", (err) => {
-      console.error(`[STREAM] FATAL: Failed to spawn yt-dlp:`, err.message);
-      if (!headersSent) {
-        res.status(500).json({ error: "Streaming backend unavailable." });
-      }
-    });
+      command.on("error", (err) => {
+        if (!headersSent) {
+          res.status(500).json({ error: "Streaming backend unavailable." });
+        }
+      });
 
-    res.on("close", () => {
-      if (!command.killed) {
-        command.kill("SIGKILL");
-        console.log(`[STREAM] Client disconnected — yt-dlp killed (${totalBytesStreamed.toLocaleString()} bytes streamed)`);
+      res.on("close", () => {
+        if (!command.killed) {
+          command.kill("SIGKILL");
+        }
+      });
+    };
+
+    try {
+      console.log(`[STREAM] Fetching direct stream URL for seeking support...`);
+      const command = `yt-dlp -f "bestaudio[ext=webm]/bestaudio/best" -g "https://www.youtube.com/watch?v=${videoId}"`;
+      const { stdout } = await execPromise(command);
+      const directUrl = stdout.trim();
+
+      if (!directUrl.startsWith("http")) {
+        throw new Error("Invalid stream URL returned by yt-dlp");
       }
-    });
+
+      console.log(`[STREAM] Direct URL found: ${directUrl.substring(0, 60)}...`);
+      const parsedUrl = new URL(directUrl);
+      const headers = { ...req.headers };
+      delete headers.host;
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: "GET",
+        headers: headers,
+        rejectUnauthorized: false
+      };
+
+      const proxyReq = https.request(options, (proxyRes) => {
+        console.log(`[STREAM] Proxy response from Google: ${proxyRes.statusCode}`);
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+
+      proxyReq.on("error", (err) => {
+        console.error("[STREAM] Proxy request error, falling back to yt-dlp pipe:", err.message);
+        fallbackToYtDlp();
+      });
+
+      res.on("close", () => {
+        proxyReq.destroy();
+      });
+
+      proxyReq.end();
+
+    } catch (err) {
+      console.error("[STREAM] Failed to fetch direct stream URL, falling back to yt-dlp pipe:", err.message);
+      fallbackToYtDlp();
+    }
   }
 
   static async getSongDetails(videoId) {

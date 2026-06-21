@@ -10,6 +10,8 @@ import { usePlayerStore, type Song } from "../store/usePlayerStore";
 import { useAuth } from "../hooks/useAuth";
 import { Play, Sparkles, LogIn, TrendingUp, Loader2 } from "lucide-react";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 const MOOD_QUERIES: Record<string, string> = {
   Focus: "lofi hip hop focus study",
   Energize: "synthwave cyberpunk high energy",
@@ -93,7 +95,7 @@ export const Home: React.FC = () => {
       setMoodLoading(true);
       try {
         const query = MOOD_QUERIES[activeMood];
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+         const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(query)}`);
         if (res.ok) {
           const data = await res.json();
           // search result might be grouped now
@@ -122,8 +124,8 @@ export const Home: React.FC = () => {
         const prefLang = localStorage.getItem("musick-pref-lang") || "Hindi";
         const prefArtists = localStorage.getItem("musick-pref-artists") || "";
         
-        const res = await fetch(
-          `/api/recommendations?artists=${encodeURIComponent(prefArtists)}&genres=${encodeURIComponent(prefGenre)}&languages=${encodeURIComponent(prefLang)}`
+         const res = await fetch(
+          `${API_URL}/api/recommendations?artists=${encodeURIComponent(prefArtists)}&genres=${encodeURIComponent(prefGenre)}&languages=${encodeURIComponent(prefLang)}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -489,10 +491,13 @@ export const Home: React.FC = () => {
                   >
                     <div className="aspect-square rounded-2xl overflow-hidden relative shadow-lg">
                       <img
-                        src={playlist.thumbnail}
+                        src={playlist.thumbnail.startsWith("http") ? playlist.thumbnail : `${API_URL}${playlist.thumbnail}`}
                         alt={playlist.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://ui-avatars.com/api/?name=Playlist";
+                        }}
                       />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <div className="w-10 h-10 rounded-full bg-accent flex items-center justify-center text-black shadow-lg">

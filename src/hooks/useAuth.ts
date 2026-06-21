@@ -121,11 +121,12 @@ export const useAuth = () => {
 
   const loginWithGoogle = async () => {
     try {
-      console.log("Origin:", window.location.origin);
+      const redirectTo = import.meta.env.VITE_APP_URL || window.location.origin;
+      console.log("Origin:", window.location.origin, "Redirecting to:", redirectTo);
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin,
+          redirectTo,
         }
       });
       console.log("OAuth initiated");

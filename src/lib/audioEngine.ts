@@ -152,6 +152,13 @@ class AudioEngineClass {
   }
 
   /**
+   * Check if the audio is currently seeking.
+   */
+  isSeeking(): boolean {
+    return this.audio.seeking;
+  }
+
+  /**
    * Get the duration of the audio element.
    */
   getDuration(): number {

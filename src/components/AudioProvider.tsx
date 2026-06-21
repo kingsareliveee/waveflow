@@ -3,6 +3,8 @@ import { audioEngine } from "../lib/audioEngine";
 import { usePlayerStore, type Song } from "../store/usePlayerStore";
 import { useRecentlyPlayed } from "../hooks/useRecentlyPlayed";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 /**
  * AudioProvider — bridges the singleton AudioEngine with the Zustand player store.
  *
@@ -73,8 +75,8 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       },
       onPause: () => {
-        // Sync store if audio paused externally
-        if (storeRef.current.isPlaying) {
+        // Sync store if audio paused externally, but ignore if seeking
+        if (storeRef.current.isPlaying && !audioEngine.isSeeking()) {
           storeRef.current.setIsPlaying(false);
         }
       },
@@ -117,7 +119,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (song.videoId !== globalLoadedVideoId) {
           console.log(`[STREAM TRIGGER] currentSong changed — new videoId: ${song.videoId}, prev: ${globalLoadedVideoId}`);
           console.trace("[STREAM TRIGGER] call stack");
-          const streamUrl = `/api/stream/${song.videoId}`;
+          const streamUrl = `${API_URL}/api/stream/${song.videoId}`;
           globalLoadedVideoId = song.videoId;
           audioEngine.load(song.videoId, streamUrl);
 
@@ -132,7 +134,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (initialSong && initialSong.videoId !== globalLoadedVideoId) {
       console.log(`[STREAM TRIGGER] Initial state load — videoId: ${initialSong.videoId}, prev: ${globalLoadedVideoId}`);
       console.trace("[STREAM TRIGGER] initial state call stack");
-      const streamUrl = `/api/stream/${initialSong.videoId}`;
+      const streamUrl = `${API_URL}/api/stream/${initialSong.videoId}`;
       globalLoadedVideoId = initialSong.videoId;
       audioEngine.load(initialSong.videoId, streamUrl);
       logPlayRef.current(initialSong);

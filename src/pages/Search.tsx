@@ -6,6 +6,8 @@ import Fuse from "fuse.js";
 import { GlassCard } from "../components/GlassCard";
 import { usePlayerStore, type Song } from "../store/usePlayerStore";
 
+const API_URL = import.meta.env.VITE_API_URL || "";
+
 interface RecentSearchItem {
   id: string;
   type: "song" | "artist" | "playlist" | "term";
@@ -176,7 +178,7 @@ export const Search: React.FC = () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchTerm)}`);
+        const res = await fetch(`${API_URL}/api/search?q=${encodeURIComponent(searchTerm)}`);
       if (!res.ok) throw new Error("Search request failed");
       const data = await res.json();
       const songs: Song[] = data.songs || (Array.isArray(data) ? data : []);
@@ -428,6 +430,9 @@ export const Search: React.FC = () => {
                               className={`w-9 h-9 object-cover flex-shrink-0 ${
                                 item.type === "artist" ? "rounded-full" : "rounded-md"
                               }`}
+                              onError={(e) => {
+                                e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+                              }}
                             />
                           ) : (
                             <div className="w-9 h-9 rounded-md bg-white/5 flex items-center justify-center flex-shrink-0">
@@ -494,6 +499,9 @@ export const Search: React.FC = () => {
                           src={art.thumbnail}
                           alt={art.name}
                           className="w-11 h-11 rounded-full object-cover border border-white/5 group-hover:scale-105 transition-transform"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+                          }}
                         />
                         <span className="text-[10px] font-bold text-white/70 group-hover:text-white truncate max-w-[70px]">
                           {art.name.split(" ")[0]}
@@ -520,6 +528,9 @@ export const Search: React.FC = () => {
                           src={pl.thumbnail}
                           alt={pl.title}
                           className="w-9 h-9 object-cover rounded-md flex-shrink-0"
+                          onError={(e) => {
+                            e.currentTarget.src = "https://ui-avatars.com/api/?name=Playlist";
+                          }}
                         />
                         <div className="flex flex-col min-w-0">
                           <span className="text-xs font-bold text-white truncate group-hover:text-accent transition-colors">
@@ -587,6 +598,9 @@ export const Search: React.FC = () => {
                           className={`w-9 h-9 object-cover flex-shrink-0 ${
                             item.type === "artist" ? "rounded-full" : "rounded-md"
                           }`}
+                          onError={(e) => {
+                            e.currentTarget.src = "https://ui-avatars.com/api/?name=Artist";
+                          }}
                         />
                       ) : (
                         <div className="w-9 h-9 rounded-md bg-white/5 flex items-center justify-center flex-shrink-0">
@@ -701,6 +715,9 @@ export const Search: React.FC = () => {
                         src={song.thumbnail}
                         alt={song.title}
                         className="w-10 h-10 object-cover rounded-md flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://ui-avatars.com/api/?name=Song";
+                        }}
                       />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold text-white truncate">{song.title}</span>
@@ -782,6 +799,9 @@ export const Search: React.FC = () => {
                         src={artist.thumbnail || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&size=256&background=1a1a2e&color=fff&bold=true`}
                         alt={artist.name}
                         className="w-10 h-10 object-cover rounded-full flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}`;
+                        }}
                       />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold text-white truncate flex items-center gap-1">
@@ -813,6 +833,9 @@ export const Search: React.FC = () => {
                           alt={artist.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}`;
+                          }}
                         />
                       </div>
                       <div className="flex flex-col items-center min-w-0">
@@ -841,6 +864,9 @@ export const Search: React.FC = () => {
                           src={artist.thumbnail || `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}&size=256&background=1a1a2e&color=fff&bold=true`}
                           alt={artist.name}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          onError={(e) => {
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(artist.name)}`;
+                          }}
                         />
                       </div>
                       <span className="text-xs font-bold text-white truncate max-w-full group-hover:text-accent transition-colors">
@@ -886,6 +912,9 @@ export const Search: React.FC = () => {
                         src={album.thumbnail}
                         alt={album.title}
                         className="w-10 h-10 object-cover rounded-md flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://ui-avatars.com/api/?name=Album";
+                        }}
                       />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold text-white truncate">{album.title}</span>
@@ -965,6 +994,9 @@ export const Search: React.FC = () => {
                         src={playlist.thumbnail}
                         alt={playlist.title}
                         className="w-10 h-10 object-cover rounded-md flex-shrink-0"
+                        onError={(e) => {
+                          e.currentTarget.src = "https://ui-avatars.com/api/?name=Playlist";
+                        }}
                       />
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold text-white truncate">{playlist.title}</span>

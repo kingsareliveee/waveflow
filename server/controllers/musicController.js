@@ -17,7 +17,7 @@ export const searchSongs = async (req, res) => {
 export const streamAudio = async (req, res) => {
   try {
     const { videoId } = req.params;
-    YoutubeService.streamAudioToResponse(videoId, res);
+    YoutubeService.streamAudioToResponse(videoId, req, res);
   } catch (error) {
     console.error("Stream controller error:", error);
     if (!res.headersSent) {

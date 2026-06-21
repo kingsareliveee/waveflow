@@ -137,6 +137,20 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
     };
   }, [song.title, song.artist]);
 
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Find active line
   let activeIndex = -1;
   if (isCurrentSong && lyrics.length > 0) {
@@ -151,7 +165,7 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
 
   // Auto-scroll: only scroll WITHIN the lyrics container, never the page
   useEffect(() => {
-    if (!activeLineRef.current || !containerRef.current || !isCurrentSong) return;
+    if (!activeLineRef.current || !containerRef.current || !isCurrentSong || !isVisible) return;
     
     const container = containerRef.current;
     const activeLine = activeLineRef.current;
@@ -167,7 +181,7 @@ export const SyncedLyrics: React.FC<SyncedLyricsProps> = ({ song, isCurrentSong 
       top: Math.max(0, targetScrollTop),
       behavior: 'smooth',
     });
-  }, [activeIndex, isCurrentSong]);
+  }, [activeIndex, isCurrentSong, isVisible]);
 
   if (loading) {
     return (
