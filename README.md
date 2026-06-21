@@ -306,23 +306,7 @@ Features include:
 
 ---
 
-# 📸 Screenshots
 
-> Add screenshots here.
-
-Example:
-
-```
-/screenshots/home.png
-
-/screenshots/search.png
-
-/screenshots/player.png
-
-/screenshots/mobile.png
-```
-
----
 
 # 📌 Roadmap
 
