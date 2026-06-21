@@ -1,3 +1,5 @@
+/musick.png
+
 # 🎵 MUSICK
 
 > **Flow With The Sound.**
