@@ -3,8 +3,102 @@ import { promisify } from "util";
 import https from "https";
 import ytSearch from "yt-search";
 import { Innertube } from "youtubei.js";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import play from "play-dl";
+import { Readable } from "stream";
+
 
 const execPromise = promisify(exec);
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+let YTDLP_COMMAND = "yt-dlp";
+let YTDLP_EXEC = "yt-dlp";
+
+async function ensureYtDlp() {
+  if (process.platform === 'win32') {
+    console.log('[STREAM DIAGNOSTICS] Windows detected. Using global yt-dlp.');
+    return "yt-dlp";
+  }
+
+  const binDir = path.join(__dirname, "..", "bin");
+  const binPath = path.join(binDir, "yt-dlp");
+
+  if (fs.existsSync(binPath)) {
+    try {
+      const stats = fs.statSync(binPath);
+      if (stats.size > 1024 * 1024) { // Needs to be at least 1MB
+        console.log(`[STREAM DIAGNOSTICS] yt-dlp binary exists at ${binPath} (Size: ${stats.size} bytes).`);
+        try {
+          fs.chmodSync(binPath, '755');
+          console.log('[STREAM DIAGNOSTICS] Executable permissions set (755).');
+        } catch (chmodErr) {
+          console.warn('[STREAM DIAGNOSTICS] Failed to chmod binary:', chmodErr.message);
+        }
+        return binPath;
+      } else {
+        console.warn(`[STREAM DIAGNOSTICS] Existing binary is too small (${stats.size} bytes). Re-downloading...`);
+        try {
+          fs.unlinkSync(binPath);
+        } catch (e) {}
+      }
+    } catch (err) {
+      console.error('[STREAM DIAGNOSTICS] Existing binary check/chmod failed:', err.message);
+    }
+  }
+
+  if (!fs.existsSync(binDir)) {
+    fs.mkdirSync(binDir, { recursive: true });
+  }
+
+  const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+  console.log(`[STREAM DIAGNOSTICS] yt-dlp missing. Downloading binary from ${url} to ${binPath}...`);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch latest yt-dlp: ${response.statusText} (${response.status})`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(binPath, buffer);
+    console.log(`[STREAM DIAGNOSTICS] Download complete. Size: ${buffer.length} bytes.`);
+    
+    try {
+      fs.chmodSync(binPath, '755');
+      console.log('[STREAM DIAGNOSTICS] Executable permissions set (755).');
+    } catch (chmodErr) {
+      console.warn('[STREAM DIAGNOSTICS] Failed to chmod binary:', chmodErr.message);
+    }
+    
+    return binPath;
+  } catch (err) {
+    console.error('[STREAM DIAGNOSTICS] Download failed:', err.message, err);
+    return "yt-dlp";
+  }
+}
+
+const localYtDlpPath = path.join(__dirname, "..", "bin", "yt-dlp");
+
+ensureYtDlp().then((resolvedPath) => {
+  YTDLP_COMMAND = resolvedPath;
+  YTDLP_EXEC = resolvedPath.includes(" ") ? `"${resolvedPath}"` : resolvedPath;
+  console.log("YTDLP_COMMAND =", YTDLP_COMMAND);
+  console.log("local exists =", fs.existsSync(localYtDlpPath));
+  
+  exec(`${YTDLP_EXEC} --version`, (err, stdout, stderr) => {
+    if (err) {
+      console.error(`[STREAM DIAGNOSTICS] Failed to execute resolved yt-dlp --version:`, err.message);
+      console.error(`[STREAM DIAGNOSTICS] Full error stack:`, err);
+    } else {
+      console.log(`[STREAM DIAGNOSTICS] yt-dlp version check success: ${stdout.trim()}`);
+    }
+  });
+}).catch((err) => {
+  console.error("[STREAM DIAGNOSTICS] Failed to ensure yt-dlp binary:", err.message, err);
+});
 
 const vevoBlacklist = new Set();
 const playlistCache = new Map();
@@ -223,7 +317,7 @@ export class YoutubeService {
     } catch (err) {
       console.error("[YOUTUBEJS] getPlaylist failed, falling back to yt-dlp flat playlist:", err.message);
       
-      const command = `yt-dlp --flat-playlist --dump-single-json --no-update "https://www.youtube.com/playlist?list=${playlistId}"`;
+      const command = `${YTDLP_EXEC} --flat-playlist --dump-single-json --no-update "https://www.youtube.com/playlist?list=${playlistId}"`;
       const { stdout } = await execPromise(command);
       const json = JSON.parse(stdout.trim());
       
@@ -316,19 +410,110 @@ export class YoutubeService {
     };
   }
 
+  static async fallbackToYoutubeiOrPlayDl(videoId, req, res) {
+    console.log(`[STREAM FALLBACK] Attempting youtubei.js/play-dl fallback for videoId: ${videoId}`);
+    
+    if (res.headersSent) {
+      console.log(`[STREAM FALLBACK] Headers already sent, aborting fallback for videoId: ${videoId}`);
+      return;
+    }
+
+    // Try play-dl first
+    try {
+      console.log(`[STREAM FALLBACK] Trying play-dl extraction...`);
+      const streamInfo = await play.stream(`https://www.youtube.com/watch?v=${videoId}`);
+      if (streamInfo && streamInfo.stream) {
+        console.log(`[STREAM FALLBACK] play-dl stream obtained. Content-type: ${streamInfo.type || 'audio/webm'}`);
+        if (res.headersSent) return;
+        
+        let contentType = streamInfo.type || "audio/webm";
+        if (contentType.includes("mp4") || contentType.includes("m4a")) {
+          contentType = "audio/mp4";
+        } else {
+          contentType = "audio/webm";
+        }
+        
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Accept-Ranges", "none");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        
+        streamInfo.stream.pipe(res);
+        
+        streamInfo.stream.on('error', (err) => {
+          console.error(`[STREAM FALLBACK] play-dl stream read error:`, err);
+          if (!res.headersSent) {
+            res.end();
+          }
+        });
+        return; // Success!
+      } else {
+        throw new Error("play-dl returned empty stream");
+      }
+    } catch (playErr) {
+      console.error(`[STREAM FALLBACK] play-dl extraction failed:`, playErr.message);
+    }
+
+    // Try youtubei.js fallback
+    try {
+      console.log(`[STREAM FALLBACK] Trying youtubei.js extraction...`);
+      const youtube = await getYoutube();
+      if (!youtube) throw new Error("youtubei.js not initialized");
+
+      const stream = await youtube.download(videoId, { type: 'audio', quality: 'best' });
+      if (stream) {
+        console.log(`[STREAM FALLBACK] youtubei.js stream obtained successfully.`);
+        if (res.headersSent) return;
+        res.setHeader("Content-Type", "audio/webm");
+        res.setHeader("Accept-Ranges", "none");
+        res.setHeader("Cache-Control", "no-store");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Access-Control-Allow-Origin", "*");
+
+        const nodeStream = Readable.fromWeb(stream);
+        nodeStream.pipe(res);
+        
+        nodeStream.on('error', (err) => {
+          console.error(`[STREAM FALLBACK] youtubei.js stream read error:`, err);
+          if (!res.headersSent) {
+            res.end();
+          }
+        });
+        return; // Success!
+      } else {
+        throw new Error("youtubei.js download returned empty stream");
+      }
+    } catch (ytErr) {
+      console.error(`[STREAM FALLBACK] youtubei.js extraction failed:`, ytErr.message);
+    }
+
+    // If everything failed:
+    console.error(`[STREAM FALLBACK] All fallback options exhausted for videoId: ${videoId}`);
+    if (res.headersSent) return;
+    res.status(500).json({ error: "Streaming backend unavailable." });
+  }
+
   static async streamAudioToResponse(videoId, req, res) {
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-      if (!res.headersSent) res.status(400).json({ error: "Invalid Video ID" });
+      if (res.headersSent) return;
+      res.status(400).json({ error: "Invalid Video ID" });
       return;
     }
 
     if (vevoBlacklist.has(videoId)) {
       console.log(`\n--- Blocked Stream Request: ${videoId} (Blacklisted) ---`);
-      if (!res.headersSent) res.status(403).json({ error: "Protected VEVO video cannot be streamed." });
+      if (res.headersSent) return;
+      res.status(403).json({ error: "Protected VEVO video cannot be streamed." });
       return;
     }
 
     const fallbackToYtDlp = () => {
+      if (res.headersSent) {
+        console.log(`[STREAM DEBUG] fallbackToYtDlp called but headers already sent. Aborting.`);
+        return;
+      }
+
       const requestStart = performance.now();
       let firstByteReceivedAt = null;
       let firstByteSentAt = null;
@@ -339,6 +524,7 @@ export class YoutubeService {
 
       console.log(`\n--- Falling Back to yt-dlp Stream ---`);
       console.log(`[STREAM] videoId: ${videoId}`);
+      console.log(`[STREAM DEBUG] Spawning fallback yt-dlp binary: ${YTDLP_COMMAND}`);
 
       const ytDlpArgs = [
         "-f", "bestaudio[ext=webm]/bestaudio/best",
@@ -351,7 +537,7 @@ export class YoutubeService {
         `https://www.youtube.com/watch?v=${videoId}`
       ];
 
-      const command = spawn("yt-dlp", ytDlpArgs, {
+      const command = spawn(YTDLP_COMMAND, ytDlpArgs, {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
@@ -360,23 +546,26 @@ export class YoutubeService {
         const currentMem = process.memoryUsage.rss();
         if (currentMem > peakMemoryUsage) peakMemoryUsage = currentMem;
 
-        if (!headersSent) {
+        if (!headersSent && !res.headersSent) {
           firstByteReceivedAt = performance.now();
           res.setHeader("Content-Type", "audio/webm");
           res.setHeader("Accept-Ranges", "none");
           res.setHeader("Cache-Control", "no-store");
           res.setHeader("X-Content-Type-Options", "nosniff");
+          res.setHeader("Access-Control-Allow-Origin", "*");
           headersSent = true;
           firstByteSentAt = performance.now();
         }
 
         totalBytesStreamed += chunk.length;
-        const canContinue = res.write(chunk);
-        if (!canContinue) {
-          command.stdout.pause();
-          res.once("drain", () => {
-            command.stdout.resume();
-          });
+        if (!res.writableEnded) {
+          const canContinue = res.write(chunk);
+          if (!canContinue) {
+            command.stdout.pause();
+            res.once("drain", () => {
+              command.stdout.resume();
+            });
+          }
         }
       });
 
@@ -388,26 +577,26 @@ export class YoutubeService {
       });
 
       command.on("close", (code) => {
+        console.log(`[STREAM DEBUG] fallbackToYtDlp closed with code: ${code} for videoId: ${videoId}`);
         if (code !== 0 && code !== null) {
+          console.error(`[STREAM ERROR STACK] fallbackToYtDlp process exited with code ${code} for videoId: ${videoId}. Error output (last 4KB): ${errorOutput}`);
           if (totalBytesStreamed === 0) {
-            vevoBlacklist.add(videoId);
-            if (!headersSent) {
-              res.status(403).json({ error: "Protected video. Stream failed." });
-            } else {
-              res.end();
-            }
+            console.log(`[STREAM] fallbackToYtDlp failed to stream any bytes. Trying play-dl/youtubei fallback...`);
+            YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
           } else {
-            if (headersSent) res.end();
+            if (res.headersSent) return;
+            res.end();
           }
         } else {
-          if (headersSent) res.end();
+          if (res.headersSent) return;
+          res.end();
         }
       });
 
       command.on("error", (err) => {
-        if (!headersSent) {
-          res.status(500).json({ error: "Streaming backend unavailable." });
-        }
+        console.error(`[STREAM ERROR STACK] fallbackToYtDlp spawn error for videoId: ${videoId}:`);
+        console.error(JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
+        YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
       });
 
       res.on("close", () => {
@@ -419,16 +608,33 @@ export class YoutubeService {
 
     try {
       console.log(`[STREAM] Fetching direct stream URL for seeking support...`);
-      const command = `yt-dlp -f "bestaudio[ext=webm]/bestaudio/best" -g "https://www.youtube.com/watch?v=${videoId}"`;
-      const { stdout } = await execPromise(command);
-      const directUrl = stdout.trim();
+      const command = `${YTDLP_EXEC} -f "bestaudio[ext=webm]/bestaudio/best" -g "https://www.youtube.com/watch?v=${videoId}"`;
+      console.log(`[STREAM DEBUG] Running command to extract direct URL for videoId: ${videoId}: ${command}`);
+      
+      let stdout;
+      try {
+        const result = await execPromise(command);
+        stdout = result.stdout;
+      } catch (execErr) {
+        console.error(`[STREAM ERROR STACK] execPromise failed to execute command for videoId: ${videoId}`);
+        console.error(JSON.stringify(execErr, Object.getOwnPropertyNames(execErr), 2));
+        throw execErr;
+      }
 
-      if (!directUrl.startsWith("http")) {
-        throw new Error("Invalid stream URL returned by yt-dlp");
+      const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+      const directUrl = lines.find(line => line.startsWith("http"));
+      console.log(`[STREAM DEBUG] Extracted stream URL for videoId ${videoId}: ${directUrl}`);
+
+      if (!directUrl) {
+        throw new Error("Invalid/empty stream URL returned by yt-dlp");
+      }
+
+      const parsedUrl = new URL(directUrl);
+      if (!parsedUrl.hostname.includes("googlevideo.com") && !parsedUrl.hostname.includes("youtube.com") && !parsedUrl.hostname.includes("ytimg.com")) {
+        throw new Error(`Extracted stream URL is not a recognized YouTube domain: ${parsedUrl.hostname}`);
       }
 
       console.log(`[STREAM] Direct URL found: ${directUrl.substring(0, 60)}...`);
-      const parsedUrl = new URL(directUrl);
       const headers = { ...req.headers };
       delete headers.host;
 
@@ -441,13 +647,58 @@ export class YoutubeService {
       };
 
       const proxyReq = https.request(options, (proxyRes) => {
-        console.log(`[STREAM] Proxy response from Google: ${proxyRes.statusCode}`);
-        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        console.log(`[STREAM DEBUG] Google Video response status for videoId ${videoId}: ${proxyRes.statusCode}`);
+        console.log(`[STREAM DEBUG] Raw content-type returned from Google for videoId ${videoId}: ${proxyRes.headers['content-type']}`);
+        
+        if (proxyRes.statusCode >= 400) {
+          console.warn(`[STREAM WARNING] Google Video returned status ${proxyRes.statusCode} for videoId ${videoId}. Falling back to yt-dlp piping.`);
+          proxyReq.destroy();
+          fallbackToYtDlp();
+          return;
+        }
+
+        const responseHeaders = {};
+        
+        let contentType = proxyRes.headers['content-type'] || '';
+        if (contentType.includes("mp4") || contentType.includes("m4a")) {
+          contentType = "audio/mp4";
+        } else {
+          contentType = "audio/webm";
+        }
+        responseHeaders['content-type'] = contentType;
+        
+        if (proxyRes.headers['content-length']) {
+          responseHeaders['content-length'] = proxyRes.headers['content-length'];
+        }
+        if (proxyRes.headers['content-range']) {
+          responseHeaders['content-range'] = proxyRes.headers['content-range'];
+        }
+        if (proxyRes.headers['accept-ranges']) {
+          responseHeaders['accept-ranges'] = proxyRes.headers['accept-ranges'];
+        } else {
+          responseHeaders['accept-ranges'] = 'bytes';
+        }
+        if (proxyRes.headers['cache-control']) {
+          responseHeaders['cache-control'] = proxyRes.headers['cache-control'];
+        } else {
+          responseHeaders['cache-control'] = 'no-store';
+        }
+        
+        responseHeaders['access-control-allow-origin'] = '*';
+        responseHeaders['access-control-allow-headers'] = 'Range, Content-Type';
+        responseHeaders['access-control-expose-headers'] = 'Content-Range, Content-Length, Accept-Ranges';
+
+        if (res.headersSent) {
+          console.log(`[STREAM DEBUG] Headers already sent, aborting writeHead for videoId: ${videoId}`);
+          return;
+        }
+        res.writeHead(proxyRes.statusCode, responseHeaders);
         proxyRes.pipe(res);
       });
 
       proxyReq.on("error", (err) => {
-        console.error("[STREAM] Proxy request error, falling back to yt-dlp pipe:", err.message);
+        console.error(`[STREAM ERROR STACK] Proxy request error for videoId: ${videoId}:`);
+        console.error(JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
         fallbackToYtDlp();
       });
 
@@ -458,7 +709,8 @@ export class YoutubeService {
       proxyReq.end();
 
     } catch (err) {
-      console.error("[STREAM] Failed to fetch direct stream URL, falling back to yt-dlp pipe:", err.message);
+      console.error(`[STREAM ERROR STACK] Failed to fetch direct stream URL for videoId: ${videoId}:`);
+      console.error(err);
       fallbackToYtDlp();
     }
   }
@@ -467,7 +719,7 @@ export class YoutubeService {
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
       throw new Error("Invalid Video ID");
     }
-    const command = `yt-dlp --dump-json --no-update "https://www.youtube.com/watch?v=${videoId}"`;
+     const command = `${YTDLP_EXEC} --dump-json --no-update "https://www.youtube.com/watch?v=${videoId}"`;
     const { stdout } = await execPromise(command);
     const json = JSON.parse(stdout.trim());
     return {

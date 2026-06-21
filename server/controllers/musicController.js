@@ -20,9 +20,8 @@ export const streamAudio = async (req, res) => {
     YoutubeService.streamAudioToResponse(videoId, req, res);
   } catch (error) {
     console.error("Stream controller error:", error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: "Failed to stream audio" });
-    }
+    if (res.headersSent) return;
+    res.status(500).json({ error: "Failed to stream audio" });
   }
 };
 

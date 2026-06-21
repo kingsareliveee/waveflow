@@ -4,7 +4,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "postinstall": "node download-ytdlp.js"
   },
   "dependencies": {
     "@distube/ytdl-core": "^4.16.12",
