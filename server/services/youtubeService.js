@@ -425,6 +425,8 @@ export class YoutubeService {
   }
 
   static async fallbackToInvidious(videoId, req, res) {
+    req.streamTrace = req.streamTrace || [];
+    req.streamTrace.push(`[TRACE] Entering Invidious fallback`);
     console.log(`[STREAM FALLBACK] Attempting Invidious fallback for videoId: ${videoId}`);
     
     if (res.headersSent) {
@@ -540,9 +542,10 @@ export class YoutubeService {
       });
 
       proxyReq.on("error", (err) => {
+        req.streamTrace.push(`[TRACE] Invidious failed: proxy error: ${err.message}`);
         console.error(`[STREAM FALLBACK] Invidious proxy request error:`, err.message);
         if (res.headersSent) return;
-        res.status(500).json({ error: "Streaming backend unavailable." });
+        res.status(500).json({ error: "Streaming backend unavailable.", trace: req.streamTrace });
       });
 
       res.on("close", () => {
@@ -552,13 +555,16 @@ export class YoutubeService {
       proxyReq.end();
 
     } catch (err) {
+      req.streamTrace.push(`[TRACE] Invidious failed: ${err.message}`);
       console.error(`[STREAM FALLBACK] Invidious fallback failed completely:`, err.message);
       if (res.headersSent) return;
-      res.status(500).json({ error: "Streaming backend unavailable." });
+      res.status(500).json({ error: "Streaming backend unavailable.", trace: req.streamTrace });
     }
   }
 
   static async fallbackToYoutubeiOrPlayDl(videoId, req, res) {
+    req.streamTrace = req.streamTrace || [];
+    req.streamTrace.push(`[TRACE] Entering play-dl fallback`);
     console.log(`[STREAM FALLBACK] Attempting youtubei.js/play-dl fallback for videoId: ${videoId}`);
     
     if (res.headersSent) {
@@ -587,6 +593,7 @@ export class YoutubeService {
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Access-Control-Allow-Origin", "*");
         
+        req.streamTrace.push(`[TRACE] play-dl success`);
         streamInfo.stream.pipe(res);
         
         streamInfo.stream.on('error', (err) => {
@@ -600,11 +607,13 @@ export class YoutubeService {
         throw new Error("play-dl returned empty stream");
       }
     } catch (playErr) {
+      req.streamTrace.push(`[TRACE] play-dl failed: ${playErr.message}`);
       console.error(`[STREAM FALLBACK] play-dl extraction failed:`, playErr.message);
     }
 
     // Try youtubei.js fallback
     try {
+      req.streamTrace.push(`[TRACE] Entering youtubei fallback`);
       console.log(`[STREAM FALLBACK] Trying youtubei.js extraction...`);
       const youtube = await getYoutube();
       if (!youtube) throw new Error("youtubei.js not initialized");
@@ -619,6 +628,7 @@ export class YoutubeService {
         res.setHeader("X-Content-Type-Options", "nosniff");
         res.setHeader("Access-Control-Allow-Origin", "*");
 
+        req.streamTrace.push(`[TRACE] youtubei success`);
         const nodeStream = Readable.fromWeb(stream);
         nodeStream.pipe(res);
         
@@ -633,6 +643,7 @@ export class YoutubeService {
         throw new Error("youtubei.js download returned empty stream");
       }
     } catch (ytErr) {
+      req.streamTrace.push(`[TRACE] youtubei failed: ${ytErr.message}`);
       console.error(`[STREAM FALLBACK] youtubei.js extraction failed:`, ytErr.message);
     }
 
@@ -642,6 +653,7 @@ export class YoutubeService {
   }
 
   static async streamAudioToResponse(videoId, req, res) {
+    req.streamTrace = [];
     if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
       if (res.headersSent) return;
       res.status(400).json({ error: "Invalid Video ID" });
@@ -656,6 +668,7 @@ export class YoutubeService {
     }
 
     const fallbackToYtDlp = () => {
+      req.streamTrace.push(`[TRACE] Entering yt-dlp piping`);
       if (res.headersSent) {
         console.log(`[STREAM DEBUG] fallbackToYtDlp called but headers already sent. Aborting.`);
         return;
@@ -728,6 +741,7 @@ export class YoutubeService {
         if (code !== 0 && code !== null) {
           console.error(`[STREAM ERROR STACK] fallbackToYtDlp process exited with code ${code} for videoId: ${videoId}. Error output (last 4KB): ${errorOutput}`);
           if (totalBytesStreamed === 0) {
+            req.streamTrace.push(`[TRACE] yt-dlp piping failed: exit code ${code}, error: ${errorOutput.slice(-100)}`);
             console.log(`[STREAM] fallbackToYtDlp failed to stream any bytes. Trying play-dl/youtubei fallback...`);
             YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
           } else {
@@ -741,6 +755,7 @@ export class YoutubeService {
       });
 
       command.on("error", (err) => {
+        req.streamTrace.push(`[TRACE] yt-dlp piping failed: spawn error ${err.message}`);
         console.error(`[STREAM ERROR STACK] fallbackToYtDlp spawn error for videoId: ${videoId}:`);
         console.error(JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
         YoutubeService.fallbackToYoutubeiOrPlayDl(videoId, req, res);
@@ -754,6 +769,7 @@ export class YoutubeService {
     };
 
     try {
+      req.streamTrace.push(`[TRACE] Entering Direct yt-dlp extraction`);
       console.log(`[STREAM] Fetching direct stream URL for seeking support...`);
       const command = `${YTDLP_EXEC} -f "bestaudio[ext=webm]/bestaudio/best" -g "https://www.youtube.com/watch?v=${videoId}"`;
       console.log(`[STREAM DEBUG] Running command to extract direct URL for videoId: ${videoId}: ${command}`);
@@ -844,6 +860,7 @@ export class YoutubeService {
       });
 
       proxyReq.on("error", (err) => {
+        req.streamTrace.push(`[TRACE] Direct yt-dlp failed: proxy error ${err.message}`);
         console.error(`[STREAM ERROR STACK] Proxy request error for videoId: ${videoId}:`);
         console.error(JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
         fallbackToYtDlp();
@@ -856,6 +873,7 @@ export class YoutubeService {
       proxyReq.end();
 
     } catch (err) {
+      req.streamTrace.push(`[TRACE] Direct yt-dlp extraction failed: ${err.message || String(err)}`);
       console.error(`[STREAM ERROR STACK] Failed to fetch direct stream URL for videoId: ${videoId}:`);
       console.error(err);
       
